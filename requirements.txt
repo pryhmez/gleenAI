@@ -1,0 +1,10 @@
+Flask
+Flask-Session
+twilio
+redis
+python-dotenv
+groq
+langchain
+openai
+requests
+werkzeug
