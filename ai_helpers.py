@@ -17,7 +17,7 @@ company_business = Config.COMPANY_BUSINESS
 conversation_purpose = Config.CONVERSATION_PURPOSE
 company_products_services = Config.COMPANY_PRODUCT_SERVICES
 conversation_stages = OUTBOUND_CONVERSATION_STAGES
-gclient = Groq(api_key='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')
+gclient = Groq( api_key = Config.GROQ_API_KEY )
 
 def sanitize_json_string(json_string):
     """Sanitize JSON string to remove unnecessary escape characters."""
