@@ -66,6 +66,11 @@ def delayed_delete(filename, delay=5):
     thread = threading.Thread(target=attempt_delete)
     thread.start()
 
+@app.route('/ping', methods=['GET'])
+def ping():
+    return "pong", 200
+
+
 @app.route('/audio/<filename>')
 def serve_audio(filename):
     """Serve audio files from directory."""
