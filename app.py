@@ -188,7 +188,7 @@ def start_call():
     initial_message = clean_response(ai_message)
     # audio_data = text_to_speech(initial_message)
     # audio_file_path = save_audio_file(audio_data)
-    audio_file_path = text_to_speech_yarngpt(response_text)
+    audio_file_path = text_to_speech_yarngpt(initial_message)
     audio_filename = os.path.basename(audio_file_path)
     
     # Create message history
