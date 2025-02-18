@@ -220,6 +220,10 @@ def start_call():
 def clean_response(unfiltered_response_text):
     return unfiltered_response_text.replace("<END_OF_TURN>", "").replace("<END_OF_CALL>", "")
 
+@app.route('/ping', methods=['GET'])
+def ping():
+    return "pong", 200
+
 @app.route('/audio/<filename>')
 def serve_audio(filename):
     """Serve audio files from directory."""
