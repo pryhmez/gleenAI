@@ -4,10 +4,10 @@ import os
 from werkzeug.utils import secure_filename
 from config import Config
 
-import torch
-import soundfile as sf
-from vall_e_x import VallExModel
-import tempfile
+# import torch
+# import soundfile as sf
+# from vall_e_x import VallExModel
+# import tempfile
 
 def text_to_speech(text):
     print(Config.ELEVENLABS_API_KEY)
@@ -38,19 +38,19 @@ def save_audio_file(audio_data):
         return tmpfile.name
 
 
-# Load the VALL-E X model
-device = "cuda" if torch.cuda.is_available() else "cpu"
-model = VallExModel().to(device)
-model.load_state_dict(torch.load('path/to/vallex-checkpoint.pt'))
-model.eval()
+# # Load the VALL-E X model
+# device = "cuda" if torch.cuda.is_available() else "cpu"
+# model = VallExModel().to(device)
+# model.load_state_dict(torch.load('path/to/vallex-checkpoint.pt'))
+# model.eval()
 
-def text_to_speech_valle_x(text):
-    # Generate speech using VALL-E X
-    input_text = torch.tensor([text]).to(model.device)
-    output = model.generate(input_text)
-    return output
+# def text_to_speech_valle_x(text):
+#     # Generate speech using VALL-E X
+#     input_text = torch.tensor([text]).to(model.device)
+#     output = model.generate(input_text)
+#     return output
 
-def save_audio_file_valle_x(audio_data):
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.wav', dir='audio_files') as tmpfile:
-        sf.write(tmpfile.name, audio_data.cpu().numpy(), model.sample_rate)
-        return tmpfile.name
+# def save_audio_file_valle_x(audio_data):
+#     with tempfile.NamedTemporaryFile(delete=False, suffix='.wav', dir='audio_files') as tmpfile:
+#         sf.write(tmpfile.name, audio_data.cpu().numpy(), model.sample_rate)
+#         return tmpfile.name
