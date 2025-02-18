@@ -12,11 +12,34 @@ import torch
 from flask_socketio import SocketIO
 from twilio.rest import Client
 
+import os
+from audio_helpers import text_to_speech, save_audio_file
+from ai_helpers import process_initial_message, process_message, initiate_inbound_message
+from config import Config
+import threading
+import time
+from urllib.parse import quote_plus
+import uuid
+import logging
+
+redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=False)
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)
+
+
 app = Flask(__name__)
 socketio = SocketIO(app)
 redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=False)
 twilio_client = Client(Config.TWILIO_ACCOUNT_SID, Config.TWILIO_AUTH_TOKEN)
 
+try:
+    val = redis_client.ping()
+    logging.info("Connected to Redis")
+except redis.ConnectionError as e:
+    logging.error(f"Redis connection error: {e}")
+    
 # Initialize Whisper model
 device = "cuda" if torch.cuda.is_available() else "cpu"
 whisper_model = WhisperModel("base", device=device, compute_type="float16" if device == "cuda" else "int8")
