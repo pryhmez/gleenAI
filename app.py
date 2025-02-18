@@ -16,6 +16,7 @@ import numpy as np
 from faster_whisper import WhisperModel
 from io import BytesIO
 from audio_helpers import text_to_speech, save_audio_file
+from yarngpt_helper import text_to_speech_yarngpt
 from ai_helpers import process_initial_message, process_message, initiate_inbound_message
 from config import Config
 
@@ -135,8 +136,9 @@ def handle_media(data):
                     response_text = clean_response(ai_response_text)
                     
                     # Generate audio response
-                    audio_data = text_to_speech(response_text)
-                    audio_file_path = save_audio_file(audio_data)
+                    # audio_data = text_to_speech(response_text)
+                    # audio_file_path = save_audio_file(audio_data)
+                    audio_file_path = text_to_speech_yarngpt(response_text)
                     audio_filename = os.path.basename(audio_file_path)
                     
                     # Create TwiML response
@@ -184,8 +186,9 @@ def start_call():
     # Process initial message
     ai_message = process_initial_message(customer_name, customer_businessdetails)
     initial_message = clean_response(ai_message)
-    audio_data = text_to_speech(initial_message)
-    audio_file_path = save_audio_file(audio_data)
+    # audio_data = text_to_speech(initial_message)
+    # audio_file_path = save_audio_file(audio_data)
+    audio_file_path = text_to_speech_yarngpt(response_text)
     audio_filename = os.path.basename(audio_file_path)
     
     # Create message history
