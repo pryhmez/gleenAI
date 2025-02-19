@@ -28,6 +28,6 @@ def text_to_speech_yarngpt(text, speaker="idera"):
     # Save the audio file
     os.makedirs("audio_files", exist_ok=True)
     audio_path = f"audio_files/{hash(text)}.wav"
-    torchaudio.save(audio_path, audio, sample_rate=24000)
+    torchaudio.save(audio_path, audio, sample_rate=20000)
     
     return audio_path
