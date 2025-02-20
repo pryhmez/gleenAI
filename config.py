@@ -13,6 +13,7 @@ class Config:
     ELEVENLABS_API_KEY = os.getenv('ELEVENLABS_API_KEY')
     VOICE_ID = os.getenv('VOICE_ID')
     APP_PUBLIC_URL = os.getenv('APP_PUBLIC_URL')
+    APP_SOCKET_URL = os.getenv('APP_SOCKET_URL')
     APP_PUBLIC_GATHER_URL = f"{APP_PUBLIC_URL}/gather"
     APP_PUBLIC_EVENT_URL = f"{APP_PUBLIC_URL}/event"
     COMPANY_NAME = os.getenv('COMPANY_NAME')
