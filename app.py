@@ -118,23 +118,28 @@ def make_call():
     customer_phonenumber = data.get('customer_phonenumber', '')
     customer_businessdetails = data.get('customer_businessdetails', 'No details provided.')
 
-    # Call AI_Helpers with customer_name, customer_businessdetails to create the initial response and return the response
-    ai_message=process_initial_message(customer_name,customer_businessdetails)
-    initial_message=clean_response(ai_message)
+    # Process initial message and create audio
+    ai_message = process_initial_message(customer_name, customer_businessdetails)
+    initial_message = clean_response(ai_message)
     audio_file_path = text_to_speech_yarngpt(initial_message)
     audio_filename = os.path.basename(audio_file_path)
 
-    #create message history session variable and store the message history [WIP : Enhance this session management]
+    # Store message history in Redis
     initial_transcript = "Customer Name:" + customer_name + ". Customer's business Details as filled up in the website:" + customer_businessdetails
     message_history.append({"role": "user", "content": initial_transcript})
     message_history.append({"role": "assistant", "content": initial_message})
     redis_client.set(unique_id, json.dumps(message_history))
 
+    # Create TwiML response
     response = VoiceResponse()
+    
+    # First establish the stream connection
+    start = Start()
+    start.stream(url=f"{Config.APP_SOCKET_URL}")
+    response.append(start)
+    
+    # Then play the greeting
     response.play(url_for('serve_audio', filename=secure_filename(audio_filename), _external=True))
-    connect = Connect()
-    connect.stream(url=f"{Config.APP_SOCKET_URL}")
-    response.append(connect)
 
     call = client.calls.create(
         twiml=str(response),       
@@ -150,6 +155,7 @@ def make_call():
     call_sessions[call.sid] = {"status": "initiated"}
     
     return jsonify({"status": "calling", "call_sid": call.sid})
+
 
 # ========================
 #  TWILIO EVENT HOOK
