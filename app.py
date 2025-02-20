@@ -4,8 +4,6 @@ from flask_session import Session
 from twilio.rest import Client
 from twilio.twiml.voice_response import VoiceResponse, Start
 from faster_whisper import WhisperModel
-from your_gpt_module import process_message
-from your_tts_module import text_to_speech_yarngpt
 from werkzeug.utils import secure_filename
 from langchain_core.prompts import PromptTemplate
 
