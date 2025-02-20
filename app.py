@@ -194,8 +194,10 @@ def handle_start(data):
     """Handles Twilio WebSocket connection start."""
     call_sid = data.get("streamSid", "")
     if call_sid:
-        print(f"Started streaming for call {call_sid}")
+        logger.info(f"Started streaming for call {call_sid}")
         stream_processors[call_sid] = StreamProcessor(call_sid)
+    else:
+        logger.warning("No streamSid received in 'start' event")
 
 
 @socketio.on('media')
@@ -208,6 +210,7 @@ def handle_media(data):
 
     payload = data.get('payload')
     if not payload:
+        logger.warning("No payload received in 'media' event")
         return
 
     # Decode audio and add to buffer
@@ -224,12 +227,16 @@ def handle_media(data):
             
             if not transcription.strip():
                 return  # Ignore empty transcriptions
+            
+            logger.debug(f"Transcription: {transcription}")
 
             # Fetch AI Response
             message_history_json = redis_client.get(stream_sid)
             message_history = json.loads(message_history_json) if message_history_json else []
             ai_response_text = process_message(message_history, transcription)
             response_text = clean_response(ai_response_text)
+
+            logger.debug(f"AI Response: {response_text}")
 
             # Convert AI text to speech asynchronously
             audio_file_path = text_to_speech_yarngpt(response_text)
