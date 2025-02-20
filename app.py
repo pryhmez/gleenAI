@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, url_for, session, after_this_request,
 from flask_socketio import SocketIO
 from flask_session import Session
 from twilio.rest import Client
-from twilio.twiml.voice_response import VoiceResponse, Start
+from twilio.twiml.voice_response import VoiceResponse, Start, Connect
 from faster_whisper import WhisperModel
 from werkzeug.utils import secure_filename
 from langchain_core.prompts import PromptTemplate
@@ -132,9 +132,9 @@ def make_call():
 
     response = VoiceResponse()
     response.play(url_for('serve_audio', filename=secure_filename(audio_filename), _external=True))
-    start = Start()
-    start.stream(url=f"{Config.APP_SOCKET_URL}")
-    response.append(start)
+    connect = Connect()
+    connect.stream(url=f"{Config.APP_SOCKET_URL}")
+    response.append(connect)
 
     call = client.calls.create(
         twiml=str(response),       

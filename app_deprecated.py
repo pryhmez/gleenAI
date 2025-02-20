@@ -206,3 +206,72 @@ def event():
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
+
+
+from flask import Flask, request
+from twilio.twiml.voice_response import VoiceResponse, Connect
+from fastapi import FastAPI, WebSocket
+import websockets
+import json
+
+app = Flask(__name__)
+
+@app.route("/incoming-call", methods=["GET", "POST"])
+def handle_incoming_call():
+    """Handle incoming call and return TwiML response to connect to Media Stream."""
+    response = VoiceResponse()
+    response.say("Please wait while we connect your call to the media stream.")
+    connect = Connect()
+    connect.stream(url='wss://your-websocket-server-url/media-stream')
+    response.append(connect)
+    return str(response)
+
+@app.websocket("/media-stream")
+async def handle_media_stream(websocket: WebSocket):
+    """Handle WebSocket connections for Twilio Media Streams."""
+    await websocket.accept()
+    try:
+        async for message in websocket.iter_text():
+            data = json.loads(message)
+            if data['event'] == 'media':
+                # Process the audio data here
+                print("Received audio data")
+    except WebSocketDisconnect:
+        print("Client disconnected")
+
+if __name__ == "__main__":
+    app.run(host='0.0.0.0', port=5000)
+
+from flask import Flask, request
+from flask_socketio import SocketIO, emit
+from twilio.twiml.voice_response import VoiceResponse, Connect
+
+app = Flask(__name__)
+socketio = SocketIO(app)
+
+@app.route("/incoming-call", methods=["GET", "POST"])
+def handle_incoming_call():
+    """Handle incoming call and return TwiML response to connect to Media Stream."""
+    response = VoiceResponse()
+    response.say("Please wait while we connect your call to the media stream.")
+    connect = Connect()
+    connect.stream(url='wss://your-websocket-server-url/media-stream')
+    response.append(connect)
+    return str(response)
+
+@socketio.on('connect')
+def handle_connect():
+    print("Client connected")
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print("Client disconnected")
+
+@socketio.on('media')
+def handle_media(data):
+    """Handle incoming media data from Twilio."""
+    print("Received media data:", data)
+    # Process the audio data here
+
+if __name__ == "__main__":
+    socketio.run(app, host='0.0.0.0', port=5000)
