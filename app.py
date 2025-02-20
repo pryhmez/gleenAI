@@ -133,7 +133,7 @@ def make_call():
     response = VoiceResponse()
     response.play(url_for('serve_audio', filename=secure_filename(audio_filename), _external=True))
     start = Start()
-    start.stream(url=f"{Config.APP_PUBLIC_URL}/socket.io/")
+    start.stream(url=f"{Config.APP_SOCKET_URL}")
     response.append(start)
 
     call = client.calls.create(
