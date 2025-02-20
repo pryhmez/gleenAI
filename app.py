@@ -116,7 +116,7 @@ def make_call():
     response.play(url_for('serve_audio', filename=os.path.basename(audio_file_path), _external=True))
 
     connect = Connect()
-    connect.stream(url=f"{Config.APP_PUBLIC_URL}/ws")  # WebSocket URL
+    connect.stream(url=f"{Config.APP_SOCKET_URL}")  # WebSocket URL
     response.append(connect)
 
     call = client.calls.create(
