@@ -19,7 +19,7 @@ def text_to_speech_yarngpt(text, speaker="idera"):
     input_ids = audio_tokenizer.tokenize_prompt(prompt)
 
     # Generate speech tokens
-    output = model.generate(input_ids=input_ids, temperature=0.1, repetition_penalty=1.1, max_length=4000)
+    output = model.generate(input_ids=input_ids, temperature=0.1, repetition_penalty=1.1, max_length=6000)
     
     # Convert output to audio
     codes = audio_tokenizer.get_codes(output)
@@ -28,6 +28,6 @@ def text_to_speech_yarngpt(text, speaker="idera"):
     # Save the audio file
     os.makedirs("audio_files", exist_ok=True)
     audio_path = f"audio_files/{hash(text)}.wav"
-    torchaudio.save(audio_path, audio, sample_rate=20000)
+    torchaudio.save(audio_path, audio, sample_rate=21000)
     
     return audio_path
