@@ -3,7 +3,7 @@
 import torch
 import numpy as np
 import time
-from silero_vad import VADIterator, silero_vad_utils
+from silero_vad import get_speech_timestamps, VADIterator
 from faster_whisper import WhisperModel
 
 
@@ -11,6 +11,7 @@ from audio_helpers import text_to_speech, save_audio_file, convert_audio_to_wav
 
 # Initialize Faster Whisper
 whisper_model = WhisperModel("base", device="cuda", compute_type="float16")
+
 
 class StreamProcessor:
     def __init__(self, stream_sid, silence_duration=1.5, sample_rate=16000):
@@ -22,13 +23,10 @@ class StreamProcessor:
         self.last_speech_time = time.time()
         
         # Load Silero VAD
-        self.model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
-                                           model='silero_vad',
-                                           force_reload=False)
-        (self.get_speech_timestamps, self.save_audio, self.read_audio,
-         self.VADIterator, self.collect_chunks) = utils
+        self.model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad', model='silero_vad', force_reload=False)
+        (self.get_speech_timestamps, _, _, VADIterator, _) = utils
         
-        self.vad_iterator = self.VADIterator(self.model)
+        self.vad_iterator = VADIterator(self.model)
     
     def add_audio(self, audio_data):
         """
@@ -79,6 +77,7 @@ class StreamProcessor:
             if transcription.strip():
                 return transcription
         return None
+
 
 
 # class StreamProcessor:
