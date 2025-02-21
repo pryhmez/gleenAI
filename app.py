@@ -226,6 +226,8 @@ def handle_media(ws):
 
             if event == 'media':
                 stream_sid = data.get('streamSid')
+                print(f"stream is media{stream_sid}")
+
                 
                 if not stream_sid or stream_sid not in stream_processors:
                     logger.warning(f"Invalid stream SID: {stream_sid}")
