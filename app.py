@@ -67,6 +67,10 @@ client = Client(Config.TWILIO_ACCOUNT_SID, Config.TWILIO_AUTH_TOKEN)
 stream_processors = {}
 call_sessions = {}
 
+# Directory to save the final combined audio file
+audio_files_directory = "audio_files"
+os.makedirs(audio_files_directory, exist_ok=True)
+
 def clean_response(unfiltered_response_text):
     # Remove specific substrings from the response text
     filtered_response_text = unfiltered_response_text.replace("<END_OF_TURN>", "").replace("<END_OF_CALL>", "")
@@ -307,7 +311,11 @@ def handle_media(ws):
                             logger.debug(f"Audio Chunk Type: {type(audio_chunk)}")
 
                             try:
-                                # Convert audio to WAV format
+                                # Save the combined audio to a file
+                                combined_audio_file_path = processor.save_audio_to_file(audio_chunk, 'inspect_audio.wav')
+                                logger.debug(f"Saved combined audio to {combined_audio_file_path}")
+
+                                # Convert audio to WAV format for transcription
                                 wav_audio = convert_audio_to_wav(audio_chunk)
 
                                 if wav_audio:
@@ -420,6 +428,13 @@ class StreamProcessor:
             self.audio_buffer = []  # Clear the buffer after processing
             return audio_chunk
         return None
+
+    def save_audio_to_file(self, audio_chunk, filename):
+        file_path = os.path.join(audio_files_directory, filename)
+        with open(file_path, 'wb') as f:
+            f.write(audio_chunk)
+        print("=====================================saved audio")
+        return 
 
 # ========================
 #  RUN APP
