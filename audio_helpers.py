@@ -1,13 +1,14 @@
 import requests
 import tempfile
 import os
+import io
+import ffmpeg 
+import logging
 from werkzeug.utils import secure_filename
 from config import Config
 
-# import torch
-# import soundfile as sf
-# from vall_e_x import VallExModel
-# import tempfile
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def text_to_speech(text):
     print(Config.ELEVENLABS_API_KEY)
@@ -36,21 +37,25 @@ def save_audio_file(audio_data):
     with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3', dir='audio_files') as tmpfile:
         tmpfile.write(audio_data)
         return tmpfile.name
+    
+# Convert raw audio bytes to WAV format
+def convert_audio_to_wav(audio_chunk):
+    try:
+        audio_input = io.BytesIO(audio_chunk)  # Wrap in BytesIO
+        audio_output = io.BytesIO()
 
+        process = (
+            ffmpeg
+            .input('pipe:0', format='s16le', acodec='pcm_s16le', ac=1, ar='16000')
+            .output('pipe:1', format='wav')
+            .run(input=audio_input.read(), capture_stdout=True, capture_stderr=True)
+        )
 
-# # Load the VALL-E X model
-# device = "cuda" if torch.cuda.is_available() else "cpu"
-# model = VallExModel().to(device)
-# model.load_state_dict(torch.load('path/to/vallex-checkpoint.pt'))
-# model.eval()
+        audio_output.write(process[0])
+        audio_output.seek(0)  # Reset pointer to start
 
-# def text_to_speech_valle_x(text):
-#     # Generate speech using VALL-E X
-#     input_text = torch.tensor([text]).to(model.device)
-#     output = model.generate(input_text)
-#     return output
+        return audio_output  # Return WAV buffer
 
-# def save_audio_file_valle_x(audio_data):
-#     with tempfile.NamedTemporaryFile(delete=False, suffix='.wav', dir='audio_files') as tmpfile:
-#         sf.write(tmpfile.name, audio_data.cpu().numpy(), model.sample_rate)
-#         return tmpfile.name
+    except Exception as e:
+        logger.error(f"FFmpeg audio conversion error: {e}")
+        return None

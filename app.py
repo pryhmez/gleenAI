@@ -12,8 +12,9 @@ from langchain_core.prompts import PromptTemplate
 
 from config import Config
 from ai_helpers import process_initial_message, process_message, initiate_inbound_message
-from audio_helpers import text_to_speech, save_audio_file
+from audio_helpers import text_to_speech, save_audio_file, convert_audio_to_wav
 from yarngpt_helper import text_to_speech_yarngpt
+from stream_processor import StreamProcessor
 
 import base64
 import os
@@ -33,7 +34,7 @@ redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=F
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)
+
 try:
     val = redis_client.ping()
     logging.info("Connected to Redis")
@@ -88,28 +89,6 @@ def delayed_delete(filename, delay=5):
 
     thread = threading.Thread(target=attempt_delete)
     thread.start()
-
-# Convert raw audio bytes to WAV format
-def convert_audio_to_wav(audio_chunk):
-    try:
-        audio_input = io.BytesIO(audio_chunk)  # Wrap in BytesIO
-        audio_output = io.BytesIO()
-
-        process = (
-            ffmpeg
-            .input('pipe:0', format='s16le', acodec='pcm_s16le', ac=1, ar='16000')
-            .output('pipe:1', format='wav')
-            .run(input=audio_input.read(), capture_stdout=True, capture_stderr=True)
-        )
-
-        audio_output.write(process[0])
-        audio_output.seek(0)  # Reset pointer to start
-
-        return audio_output  # Return WAV buffer
-
-    except Exception as e:
-        logger.error(f"FFmpeg audio conversion error: {e}")
-        return None
 
 
 @app.route('/ping', methods=['GET'])
@@ -304,64 +283,42 @@ def handle_media(ws):
                     processor = stream_processors[stream_sid]
                     processor.add_audio(audio_data)
 
-                    # Check for silence
-                    if processor.is_silence():
-                        audio_chunk = processor.process_buffer()
-                        if audio_chunk is not None and len(audio_chunk) > 1600:  # Ensure a minimum length
-                            logger.debug(f"Audio Chunk Length: {len(audio_chunk)}")
-                            logger.debug(f"Audio Chunk Type: {type(audio_chunk)}")
+                    # Check if transcription is available
+                    transcription = processor.transcribe_audio()
+                    if transcription:
+                        # Retrieve unique_id for message history
+                        unique_id = stream_to_unique_id.get(stream_sid)
 
-                            try:
-                                # Save the combined audio to a file
-                                combined_audio_file_path = processor.save_audio_to_file(audio_chunk, 'inspect_audio.wav')
-                                logger.debug(f"Saved combined audio to {combined_audio_file_path}")
+                        # Process AI response and generate audio
+                        message_history_json = redis_client.get(unique_id)
+                        message_history = json.loads(message_history_json) if message_history_json else []
+                        ai_response_text = process_message(message_history, transcription)
+                        response_text = clean_response(ai_response_text)
 
-                                # Convert audio to WAV format for transcription
-                                wav_audio = convert_audio_to_wav(audio_chunk)
+                        logger.debug(f"AI Response: {response_text}")
 
-                                if wav_audio:
-                                    # Transcribe using Faster Whisper
-                                    logger.debug("Starting transcription.")
-                                    segments, _ = whisper_model.transcribe(wav_audio, beam_size=5)
-                                    logger.debug("Transcription completed.")
+                        audio_file_path = text_to_speech_yarngpt(response_text)
+                        audio_filename = os.path.basename(audio_file_path)
 
-                                    transcription = " ".join([segment.text for segment in segments])
+                        message_history.append({"role": "user", "content": transcription})
+                        message_history.append({"role": "assistant", "content": response_text})
+                        redis_client.set(unique_id, json.dumps(message_history))
 
-                                    if not transcription.strip():
-                                        continue
+                        print(response_text)
 
-                                    logger.debug(f"Transcription: {transcription}")
+                        # Send audio response back to the user if needed
+                        # Implementation depends on your requirements
 
-                                    # Retrieve unique_id for message history
-                                    unique_id = stream_to_unique_id.get(stream_sid)
-
-                                    # Process AI response and generate audio
-                                    message_history_json = redis_client.get(unique_id)
-                                    message_history = json.loads(message_history_json) if message_history_json else []
-                                    ai_response_text = process_message(message_history, transcription)
-                                    response_text = clean_response(ai_response_text)
-
-                                    logger.debug(f"AI Response: {response_text}")
-
-                                    audio_file_path = text_to_speech_yarngpt(response_text)
-                                    audio_filename = os.path.basename(audio_file_path)
-
-                                    message_history.append({"role": "user", "content": transcription})
-                                    message_history.append({"role": "assistant", "content": response_text})
-                                    redis_client.set(unique_id, json.dumps(message_history))
-
-                                    print(response_text)
-
-                                    processor.last_audio_time = time.time()  # Reset the silence timer
-
-                            except Exception as e:
-                                logger.error(f"Error processing audio chunk: {e}")
+            else:
+                # Handle the case when no message is received
+                pass
 
         except Exception as e:
             logger.error(f"Error in WebSocket handling: {e}")
             break
 
     ws.close()
+
 
 
 # ========================
@@ -386,75 +343,6 @@ def serve_audio(filename):
         logger.error(f"Audio file not found: {filename}")
         abort(404)
 
-# ========================
-#  STREAM PROCESSOR CLASS
-# ========================    
-# class StreamProcessor:
-#     def __init__(self, stream_sid):
-#         self.stream_sid = stream_sid
-#         self.audio_buffer = []
-#         self.last_process_time = time.time()
-
-#     def add_audio(self, audio_data):
-#         self.audio_buffer.append(audio_data)
-
-#     def should_process(self):
-#         # Check if the buffer length is sufficient for processing
-#         return len(self.audio_buffer) > 50 or time.time() - self.last_process_time > 3
-
-#     def process_buffer(self):
-#         if self.audio_buffer:
-#             audio_chunk = b"".join(self.audio_buffer)
-#             self.audio_buffer = []  
-#             return audio_chunk
-#         return None
-
-class StreamProcessor:
-    def __init__(self, stream_sid, silence_threshold=0.01, silence_duration=3):
-        self.stream_sid = stream_sid
-        self.audio_buffer = []
-        self.last_audio_time = time.time()
-        self.silence_threshold = silence_threshold  # Amplitude threshold to consider as silence
-        self.silence_duration = silence_duration    # Duration in seconds to consider as silence
-
-    def add_audio(self, audio_data):
-        self.audio_buffer.append(audio_data)
-        self.last_audio_time = time.time()
-
-    def is_silence(self):
-        # Check if the buffer has audio data
-        if not self.audio_buffer:
-            return False
-        
-        # Combine all audio data in the buffer
-        combined_audio = b''.join(self.audio_buffer)
-        
-        # Convert audio data to numpy array
-        audio_array = np.frombuffer(combined_audio, dtype=np.int16)
-        
-        # Calculate the amplitude of the audio signal
-        amplitude = np.abs(audio_array).mean()
-        
-        # Check if the amplitude is below the threshold for the silence duration
-        if amplitude < self.silence_threshold:
-            if time.time() - self.last_audio_time >= self.silence_duration:
-                return True
-        
-        return False
-
-    def process_buffer(self):
-        if self.audio_buffer:
-            audio_chunk = b"".join(self.audio_buffer)
-            self.audio_buffer = []  # Clear the buffer after processing
-            return audio_chunk
-        return None
-
-    def save_audio_to_file(self, audio_chunk, filename):
-        file_path = os.path.join(audio_files_directory, filename)
-        with open(file_path, 'wb') as f:
-            f.write(audio_chunk)
-        print("=====================================saved audio")
-        return 
 
 # ========================
 #  RUN APP
