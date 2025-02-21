@@ -416,6 +416,7 @@ class StreamProcessor:
 
     def add_audio(self, audio_data):
         self.audio_buffer.append(audio_data)
+        print(self.audio_buffer)
         self.last_audio_time = time.time()
 
     def is_silence(self):
