@@ -220,13 +220,13 @@ def handle_media(ws):
                 if processor.should_process():
                     audio_chunk = processor.process_buffer()
                     if audio_chunk is not None:
-                        # Debug log for audio_chunk
                         logger.debug(f"Audio Chunk Length: {len(audio_chunk)}")
                         logger.debug(f"Audio Chunk Type: {type(audio_chunk)}")
 
                         try:
                             # Use an in-memory file-like object
                             audio_buffer = io.BytesIO(audio_chunk)
+                            audio_buffer.seek(0)
                             segments, _ = whisper_model.transcribe(audio_buffer, beam_size=5)
                             transcription = " ".join([segment.text for segment in segments])
                             
