@@ -156,19 +156,23 @@ def make_call():
     message_history.append({"role": "assistant", "content": initial_message})
     redis_client.set(unique_id, json.dumps(message_history))
 
+    # Map call_sid to unique_id for later reference
+    call_sessions = {}
+    call_sessions['unique_id'] = unique_id
+
     # Create TwiML response
     response = VoiceResponse()
-    
-    # First establish the stream connection
-    start = Start()
-    start.stream(url=f"{Config.APP_SOCKET_URL}")
-    response.append(start)
     
     # Then play the greeting
     response.play(url_for('serve_audio', filename=secure_filename(audio_filename), _external=True))
 
+    # Redirect to start the media stream after playing
+    # redirect_url = f"{Config.APP_PUBLIC_GATHER_URL}?CallSid={unique_id}"
+    response.redirect(url=url_for('connect_media_stream', unique_id=unique_id, _external=True))
+
+
     call = client.calls.create(
-        twiml=str(response),       
+        twiml=str(response),
         to=customer_phonenumber,
         from_=Config.TWILIO_FROM_NUMBER,
         method="GET",
@@ -208,10 +212,24 @@ def twilio_events():
 #  WEBSOCKET HANDLING
 # ========================
 
+@app.route('/connect-media-stream', methods=['GET', 'POST'])
+def connect_media_stream():
+    unique_id = request.args.get('unique_id')
+
+    response = VoiceResponse()
+    start = Start()
+    start.stream(url=f"{Config.APP_SOCKET_URL}")
+    response.append(start)
+    response.say("You can start speaking now.")
+    return str(response)
+
+
 @sock.route('/media-stream')
 def handle_media(ws):
     print("Client connected")
-    
+
+    stream_to_unique_id = {}
+
     while True:
         message = ws.receive()
         if message:
@@ -220,14 +238,16 @@ def handle_media(ws):
 
             if event == 'start':
                 stream_sid = data['start']['streamSid']
+                call_sid = data['start']['callSid']
                 stream_processors[stream_sid] = StreamProcessor(stream_sid)
-                # print(f"Started streaming for call {stream_sid}")
+                # Map stream SID to unique_id
+                unique_id = call_sessions.get('unique_id')
+                stream_to_unique_id[stream_sid] = unique_id
+                print(f"Started streaming for call {stream_sid}")
 
             if event == 'media':
                 stream_sid = data.get('streamSid')
-                # print(f"stream is media{stream_sid}")
 
-                
                 if not stream_sid or stream_sid not in stream_processors:
                     logger.warning(f"Invalid stream SID: {stream_sid}")
                     continue
@@ -248,24 +268,24 @@ def handle_media(ws):
                         logger.debug(f"Audio Chunk Type: {type(audio_chunk)}")
 
                         try:
-                            # Convert to WAV format
+                            # Convert audio to WAV format
                             wav_audio = convert_audio_to_wav(audio_chunk)
 
                             if wav_audio:
-                                # Use Faster Whisper to transcribe
-                                # print("yes wav can process")
+                                # Transcribe using Faster Whisper
                                 segments, _ = whisper_model.transcribe(wav_audio, beam_size=5)
                                 transcription = " ".join([segment.text for segment in segments])
-                                print(transcription + "  --------------------------")
-                                
+
                                 if not transcription.strip():
-                                    # print("not wave")
                                     continue
-                                
+
                                 logger.debug(f"Transcription: {transcription}")
 
+                                # Retrieve unique_id for message history
+                                unique_id = stream_to_unique_id.get(stream_sid)
+
                                 # Process AI response and generate audio
-                                message_history_json = redis_client.get(stream_sid)
+                                message_history_json = redis_client.get(unique_id)
                                 message_history = json.loads(message_history_json) if message_history_json else []
                                 ai_response_text = process_message(message_history, transcription)
                                 response_text = clean_response(ai_response_text)
@@ -277,7 +297,7 @@ def handle_media(ws):
 
                                 message_history.append({"role": "user", "content": transcription})
                                 message_history.append({"role": "assistant", "content": response_text})
-                                redis_client.set(stream_sid, json.dumps(message_history))
+                                redis_client.set(unique_id, json.dumps(message_history))
 
                                 print(response_text)
 
@@ -285,6 +305,7 @@ def handle_media(ws):
 
                         except Exception as e:
                             logger.error(f"Error processing audio chunk: {e}")
+
 
 
 # ========================
