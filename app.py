@@ -148,7 +148,7 @@ def make_call():
     response = VoiceResponse()
     
     # Then play the greeting
-    response.play(url_for('serve_audio', filename=secure_filename(audio_filename), _external=True))
+    # response.play(url_for('serve_audio', filename=secure_filename(audio_filename), _external=True))
 
     # Redirect to start the media stream after playing
     # redirect_url = f"{Config.APP_PUBLIC_GATHER_URL}?CallSid={unique_id}"
