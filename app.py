@@ -241,7 +241,6 @@ def handle_media(ws):
                 stream_sid = data['start']['streamSid']
                 call_sid = data['start']['callSid']
                 stream_processors[stream_sid] = StreamProcessor(stream_sid)
-                # Map stream SID to unique_id
                 unique_id = call_sessions.get('unique_id')
                 stream_to_unique_id[stream_sid] = unique_id
                 print(f"Started streaming for call {stream_sid}")
