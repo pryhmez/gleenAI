@@ -212,9 +212,41 @@ def twilio_events():
 #  WEBSOCKET HANDLING
 # ========================
 
+def transcribe_audio_file(audio_file_path):
+    """
+    Transcribes an audio file using the Faster Whisper model and logs the output.
+
+    Args:
+        audio_file_path (str): The path to the audio file to transcribe.
+    """
+    try:
+        # Open the audio file as a binary stream
+        with open(audio_file_path, 'rb') as f:
+            audio_data = f.read()
+        
+        # Create a file-like object from the audio data
+        audio_buffer = io.BytesIO(audio_data)
+        
+        # Transcribe the audio
+        segments, info = whisper_model.transcribe(audio_buffer)
+        
+        # Combine the transcribed text from all segments
+        transcription = " ".join([segment.text for segment in segments])
+        
+        # Log the output
+        print(f"Transcription for '{audio_file_path}':\n{transcription}")
+    except Exception as e:
+        print(f"Error transcribing '{audio_file_path}': {e}")
+
 @app.route('/connect-media-stream', methods=['GET', 'POST'])
 def connect_media_stream():
     unique_id = request.args.get('unique_id')
+
+    audio_file_name = "-343418298932331262.wav"
+    audio_files_directory = "audio_files"
+    audio_file_path = os.path.join(audio_files_directory, audio_file_name)
+    
+    transcribe_audio_file(audio_file_path)
 
     response = VoiceResponse()
     start = Start()
