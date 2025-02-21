@@ -85,25 +85,45 @@ def delayed_delete(filename, delay=5):
     thread.start()
 
 # Convert raw audio bytes to WAV format
-def convert_audio_to_wav(audio_chunk):
-    try:
-        audio_input = io.BytesIO(audio_chunk)  # Wrap in BytesIO
-        audio_output = io.BytesIO()
+# def convert_audio_to_wav(audio_chunk):
+#     try:
+#         audio_input = io.BytesIO(audio_chunk)  # Wrap in BytesIO
+#         audio_output = io.BytesIO()
 
+#         process = (
+#             ffmpeg
+#             .input('pipe:0', format='s16le', acodec='pcm_s16le', ac=1, ar='16000')
+#             .output('pipe:1', format='wav')
+#             .run(input=audio_input.read(), capture_stdout=True, capture_stderr=True)
+#         )
+
+#         audio_output.write(process[0])
+#         audio_output.seek(0)  # Reset pointer to start
+
+#         return audio_output  # Return WAV buffer
+
+#     except Exception as e:
+#         logger.error(f"FFmpeg audio conversion error: {e}")
+#         return None
+    
+def convert_audio_to_wav(audio_chunk):
+    audio_input = io.BytesIO(audio_chunk)
+    audio_output = io.BytesIO()
+    audio_input.seek(0)
+
+    try:
         process = (
             ffmpeg
-            .input('pipe:0', format='s16le', acodec='pcm_s16le', ac=1, ar='16000')
+            .input('pipe:0')
             .output('pipe:1', format='wav')
-            .run(input=audio_input.read(), capture_stdout=True, capture_stderr=True)
+            .run_async(pipe_stdin=True, pipe_stdout=True, pipe_stderr=True)
         )
-
-        audio_output.write(process[0])
-        audio_output.seek(0)  # Reset pointer to start
-
-        return audio_output  # Return WAV buffer
-
+        stdout, _ = process.communicate(input=audio_input.read())
+        audio_output.write(stdout)
+        audio_output.seek(0)
+        return audio_output
     except Exception as e:
-        logger.error(f"FFmpeg audio conversion error: {e}")
+        logger.error(f"Error converting audio to WAV: {e}")
         return None
 
 
@@ -286,6 +306,8 @@ def handle_media(ws):
 
                         except Exception as e:
                             logger.error(f"Error processing audio chunk: {e}")
+
+
 # ========================
 #  AUDIO FILE SERVING
 # ========================
@@ -310,7 +332,7 @@ def serve_audio(filename):
 
 # ========================
 #  STREAM PROCESSOR CLASS
-# ========================
+# ========================    
 class StreamProcessor:
     def __init__(self, stream_sid):
         self.stream_sid = stream_sid
@@ -321,15 +343,16 @@ class StreamProcessor:
         self.audio_buffer.append(audio_data)
 
     def should_process(self):
-      return len(self.audio_buffer) > 10 or time.time() - self.last_process_time > 1  # Example condition
-
+        # Check if the buffer length is sufficient for processing
+        return len(self.audio_buffer) > 50 or time.time() - self.last_process_time > 3
 
     def process_buffer(self):
         if self.audio_buffer:
             audio_chunk = b"".join(self.audio_buffer)
-            self.audio_buffer = []  # Clear buffer
+            self.audio_buffer = []  
             return audio_chunk
         return None
+
 
 # ========================
 #  RUN APP
