@@ -262,87 +262,94 @@ def handle_media(ws):
     print("Client connected")
 
     stream_to_unique_id = {}
-    last_valid_message_time = time.time()
 
     while True:
-        message = ws.receive()
-        if message:
-            data = json.loads(message)
-            event = data.get('event')
+        try:
+            message = ws.receive()
+            if message:
+                data = json.loads(message)
+                event = data.get('event')
 
-            if event == 'start':
-                stream_sid = data['start']['streamSid']
-                call_sid = data['start']['callSid']
-                stream_processors[stream_sid] = StreamProcessor(stream_sid)
-                unique_id = call_sessions.get('unique_id')
-                stream_to_unique_id[stream_sid] = unique_id
-                print(f"Started streaming for call {stream_sid}")
+                if event == 'start':
+                    stream_sid = data['start']['streamSid']
+                    call_sid = data['start']['callSid']
+                    stream_processors[stream_sid] = StreamProcessor(stream_sid)
+                    unique_id = call_sessions.get('unique_id')
+                    stream_to_unique_id[stream_sid] = unique_id
+                    print(f"Started streaming for call {stream_sid}")
 
-            if event == 'media':
-                stream_sid = data.get('streamSid')
+                elif event == 'media':
+                    stream_sid = data.get('streamSid')
 
-                if not stream_sid or stream_sid not in stream_processors:
-                    logger.warning(f"Invalid stream SID: {stream_sid}")
-                    continue
+                    if not stream_sid or stream_sid not in stream_processors:
+                        logger.warning(f"Invalid stream SID: {stream_sid}")
+                        continue
 
-                payload = data.get('media').get('payload')
-                if not payload:
-                    logger.warning("No payload received in 'media' event")
-                    continue
+                    payload = data.get('media').get('payload')
+                    if not payload:
+                        logger.warning("No payload received in 'media' event")
+                        continue
 
-                audio_data = base64.b64decode(payload)
-                processor = stream_processors[stream_sid]
-                processor.add_audio(audio_data)
+                    try:
+                        audio_data = base64.b64decode(payload)
+                    except Exception as e:
+                        logger.error(f"Error decoding base64 payload: {e}")
+                        continue
 
-                if processor.should_process():
-                    audio_chunk = processor.process_buffer()
-                    if audio_chunk is not None:
-                        logger.debug(f"Audio Chunk Length: {len(audio_chunk)}")
-                        logger.debug(f"Audio Chunk Type: {type(audio_chunk)}")
+                    processor = stream_processors[stream_sid]
+                    processor.add_audio(audio_data)
 
-                        try:
-                            # Convert audio to WAV format
-                            wav_audio = convert_audio_to_wav(audio_chunk)
+                    # Check for silence
+                    if processor.is_silence():
+                        audio_chunk = processor.process_buffer()
+                        if audio_chunk is not None and len(audio_chunk) > 1600:  # Ensure a minimum length
+                            logger.debug(f"Audio Chunk Length: {len(audio_chunk)}")
+                            logger.debug(f"Audio Chunk Type: {type(audio_chunk)}")
 
-                            if wav_audio:
-                                # Transcribe using Faster Whisper
-                                segments, _ = whisper_model.transcribe(wav_audio, beam_size=5)
-                                transcription = " ".join([segment.text for segment in segments])
+                            try:
+                                # Convert audio to WAV format
+                                wav_audio = convert_audio_to_wav(audio_chunk)
 
-                                if not transcription.strip():
-                                    continue
+                                if wav_audio:
+                                    # Transcribe using Faster Whisper
+                                    logger.debug("Starting transcription.")
+                                    segments, _ = whisper_model.transcribe(wav_audio, beam_size=5)
+                                    logger.debug("Transcription completed.")
 
-                                logger.debug(f"Transcription: {transcription}")
+                                    transcription = " ".join([segment.text for segment in segments])
 
-                                # Retrieve unique_id for message history
-                                unique_id = stream_to_unique_id.get(stream_sid)
+                                    if not transcription.strip():
+                                        continue
 
-                                # Process AI response and generate audio
-                                message_history_json = redis_client.get(unique_id)
-                                message_history = json.loads(message_history_json) if message_history_json else []
-                                ai_response_text = process_message(message_history, transcription)
-                                response_text = clean_response(ai_response_text)
+                                    logger.debug(f"Transcription: {transcription}")
 
-                                logger.debug(f"AI Response: {response_text}")
+                                    # Retrieve unique_id for message history
+                                    unique_id = stream_to_unique_id.get(stream_sid)
 
-                                audio_file_path = text_to_speech_yarngpt(response_text)
-                                audio_filename = os.path.basename(audio_file_path)
+                                    # Process AI response and generate audio
+                                    message_history_json = redis_client.get(unique_id)
+                                    message_history = json.loads(message_history_json) if message_history_json else []
+                                    ai_response_text = process_message(message_history, transcription)
+                                    response_text = clean_response(ai_response_text)
 
-                                message_history.append({"role": "user", "content": transcription})
-                                message_history.append({"role": "assistant", "content": response_text})
-                                redis_client.set(unique_id, json.dumps(message_history))
+                                    logger.debug(f"AI Response: {response_text}")
 
-                                print(response_text)
+                                    audio_file_path = text_to_speech_yarngpt(response_text)
+                                    audio_filename = os.path.basename(audio_file_path)
 
-                                processor.last_process_time = time.time()
+                                    message_history.append({"role": "user", "content": transcription})
+                                    message_history.append({"role": "assistant", "content": response_text})
+                                    redis_client.set(unique_id, json.dumps(message_history))
 
-                        except Exception as e:
-                            logger.error(f"Error processing audio chunk: {e}")
-                    last_valid_message_time = time.time()
+                                    print(response_text)
 
-        # Add a condition to break the loop and close the connection if no valid message is received within a certain period
-        if time.time() - last_valid_message_time > 30:  # 1-minute timeout
-            print("No valid message received in the last 60 seconds. Closing connection.")
+                                    processor.last_audio_time = time.time()  # Reset the silence timer
+
+                            except Exception as e:
+                                logger.error(f"Error processing audio chunk: {e}")
+
+        except Exception as e:
+            logger.error(f"Error in WebSocket handling: {e}")
             break
 
     ws.close()
@@ -373,26 +380,46 @@ def serve_audio(filename):
 # ========================
 #  STREAM PROCESSOR CLASS
 # ========================    
+# class StreamProcessor:
+#     def __init__(self, stream_sid):
+#         self.stream_sid = stream_sid
+#         self.audio_buffer = []
+#         self.last_process_time = time.time()
+
+#     def add_audio(self, audio_data):
+#         self.audio_buffer.append(audio_data)
+
+#     def should_process(self):
+#         # Check if the buffer length is sufficient for processing
+#         return len(self.audio_buffer) > 50 or time.time() - self.last_process_time > 3
+
+#     def process_buffer(self):
+#         if self.audio_buffer:
+#             audio_chunk = b"".join(self.audio_buffer)
+#             self.audio_buffer = []  
+#             return audio_chunk
+#         return None
 class StreamProcessor:
     def __init__(self, stream_sid):
         self.stream_sid = stream_sid
         self.audio_buffer = []
-        self.last_process_time = time.time()
+        self.last_audio_time = time.time()
+        self.silence_threshold = 3  # Threshold in seconds to consider as silence
 
     def add_audio(self, audio_data):
         self.audio_buffer.append(audio_data)
+        self.last_audio_time = time.time()
 
-    def should_process(self):
-        # Check if the buffer length is sufficient for processing
-        return len(self.audio_buffer) > 50 or time.time() - self.last_process_time > 3
+    def is_silence(self):
+        # Check if the current time exceeds the last audio time by the threshold
+        return time.time() - self.last_audio_time >= self.silence_threshold
 
     def process_buffer(self):
         if self.audio_buffer:
             audio_chunk = b"".join(self.audio_buffer)
-            self.audio_buffer = []  
+            self.audio_buffer = []  # Clear the buffer after processing
             return audio_chunk
         return None
-
 
 # ========================
 #  RUN APP
