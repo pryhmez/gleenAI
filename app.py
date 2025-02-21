@@ -184,82 +184,66 @@ def twilio_events():
 # ========================
 #  WEBSOCKET HANDLING
 # ========================
-# @socketio.on('connect')
-# def handle_connect():
-#     try:
-#         logger.info("Client connected to WebSocket")
-#     except Exception as e:
-#         logger.error(f"WebSocket connection error: {e}")
-
-# @socketio.on('disconnect')
-# def handle_disconnect():
-#     try:
-#         logger.info("Client disconnected from WebSocket")
-#     except Exception as e:
-#         logger.error(f"WebSocket disconnection error: {e}")
-
-# @socketio.on('start')
-# def handle_start(data):
-#     """Handles Twilio WebSocket connection start."""
-#     call_sid = data.get("streamSid", "")
-#     if call_sid:
-#         logger.info(f"Started streaming for call {call_sid}")
-#         stream_processors[call_sid] = StreamProcessor(call_sid)
-#     else:
-#         logger.warning("No streamSid received in 'start' event")
-
 
 @sock.route('/media-stream')
 def handle_media(ws):
-    """Processes live audio from Twilio, transcribes it, generates AI responses, and plays them back."""
     print("Client connected")
     
     while True:
         message = ws.receive()
         if message:
             data = json.loads(message)
-            stream_sid = data.get('streamSid')
-            print(data)
-            
-            if not stream_sid or stream_sid not in stream_processors:
-                logger.warning(f"Invalid stream SID: {stream_sid}")
-                continue
+            event = data.get('event')
 
-            payload = data.get('payload')
-            if not payload:
-                logger.warning("No payload received in 'media' event")
-                continue
+            if event == 'start':
+                stream_sid = data['start']['streamSid']
+                stream_processors[stream_sid] = StreamProcessor(stream_sid)
+                print(f"Started streaming for call {stream_sid}")
 
-            audio_data = base64.b64decode(payload)
-            processor = stream_processors[stream_sid]
-            processor.add_audio(audio_data)
+            if event == 'media':
+                stream_sid = data.get('streamSid')
+                
+                if not stream_sid or stream_sid not in stream_processors:
+                    logger.warning(f"Invalid stream SID: {stream_sid}")
+                    continue
 
-            if processor.should_process():
-                audio_chunk = processor.process_buffer()
-                if audio_chunk is not None:
-                    segments, _ = whisper_model.transcribe(audio_chunk, beam_size=5)
-                    transcription = " ".join([segment.text for segment in segments])
-                    
-                    if not transcription.strip():
-                        continue
-                    
-                    logger.debug(f"Transcription: {transcription}")
+                payload = data.get('media').get('payload')
+                if not payload:
+                    logger.warning("No payload received in 'media' event")
+                    continue
 
-                    message_history_json = redis_client.get(stream_sid)
-                    message_history = json.loads(message_history_json) if message_history_json else []
-                    ai_response_text = process_message(message_history, transcription)
-                    response_text = clean_response(ai_response_text)
+                audio_data = base64.b64decode(payload)
+                processor = stream_processors[stream_sid]
+                processor.add_audio(audio_data)
 
-                    logger.debug(f"AI Response: {response_text}")
+                if processor.should_process():
+                    audio_chunk = processor.process_buffer()
+                    if audio_chunk is not None:
+                        segments, _ = whisper_model.transcribe(audio_chunk, beam_size=5)
+                        transcription = " ".join([segment.text for segment in segments])
+                        
+                        if not transcription.strip():
+                            continue
+                        
+                        logger.debug(f"Transcription: {transcription}")
 
-                    audio_file_path = text_to_speech_yarngpt(response_text)
-                    audio_filename = os.path.basename(audio_file_path)
+                        message_history_json = redis_client.get(stream_sid)
+                        message_history = json.loads(message_history_json) if message_history_json else []
+                        ai_response_text = process_message(message_history, transcription)
+                        response_text = clean_response(ai_response_text)
 
-                    message_history.append({"role": "user", "content": transcription})
-                    message_history.append({"role": "assistant", "content": response_text})
-                    redis_client.set(stream_sid, json.dumps(message_history))
+                        logger.debug(f"AI Response: {response_text}")
 
-                    processor.last_process_time = time.time()
+                        audio_file_path = text_to_speech_yarngpt(response_text)
+                        audio_filename = os.path.basename(audio_file_path)
+
+                        message_history.append({"role": "user", "content": transcription})
+                        message_history.append({"role": "assistant", "content": response_text})
+                        redis_client.set(stream_sid, json.dumps(message_history))
+
+                        print(response_text)
+
+                        processor.last_process_time = time.time()
 
 # ========================
 #  AUDIO FILE SERVING
