@@ -222,11 +222,11 @@ def handle_media(ws):
             if event == 'start':
                 stream_sid = data['start']['streamSid']
                 stream_processors[stream_sid] = StreamProcessor(stream_sid)
-                print(f"Started streaming for call {stream_sid}")
+                # print(f"Started streaming for call {stream_sid}")
 
             if event == 'media':
                 stream_sid = data.get('streamSid')
-                print(f"stream is media{stream_sid}")
+                # print(f"stream is media{stream_sid}")
 
                 
                 if not stream_sid or stream_sid not in stream_processors:
@@ -254,12 +254,13 @@ def handle_media(ws):
 
                             if wav_audio:
                                 # Use Faster Whisper to transcribe
-                                print("yes wav can process")
+                                # print("yes wav can process")
                                 segments, _ = whisper_model.transcribe(wav_audio, beam_size=5)
                                 transcription = " ".join([segment.text for segment in segments])
+                                print(transcription + "  --------------------------")
                                 
                                 if not transcription.strip():
-                                    print("not wave")
+                                    # print("not wave")
                                     continue
                                 
                                 logger.debug(f"Transcription: {transcription}")
