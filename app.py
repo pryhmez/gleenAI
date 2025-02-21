@@ -210,63 +210,56 @@ def twilio_events():
 
 
 @sock.route('/media-stream')
-def handle_media(websocket):
+def handle_media(ws):
     """Processes live audio from Twilio, transcribes it, generates AI responses, and plays them back."""
-    print("Client connected: " )
-    print(websocket)
+    print("Client connected")
     
-    stream_sid = websocket.get('streamSid')
-    if not stream_sid or stream_sid not in stream_processors:
-        logger.warning(f"Invalid stream SID: {stream_sid}")
-        return
-
-    payload = websocket.get('payload')
-    if not payload:
-        logger.warning("No payload received in 'media' event")
-        return
-
-    # Decode audio and add to buffer
-    audio_data = base64.b64decode(payload)
-    processor = stream_processors[stream_sid]
-    processor.add_audio(audio_data)
-
-    # Process when ready
-    if processor.should_process():
-        audio_chunk = processor.process_buffer()
-        if audio_chunk is not None:
-            segments, _ = whisper_model.transcribe(audio_chunk, beam_size=5)
-            transcription = " ".join([segment.text for segment in segments])
+    while True:
+        message = ws.receive()
+        if message:
+            data = json.loads(message)
+            stream_sid = data.get('streamSid')
+            print(data)
             
-            if not transcription.strip():
-                return  # Ignore empty transcriptions
-            
-            logger.debug(f"Transcription: {transcription}")
+            if not stream_sid or stream_sid not in stream_processors:
+                logger.warning(f"Invalid stream SID: {stream_sid}")
+                continue
 
-            # Fetch AI Response
-            message_history_json = redis_client.get(stream_sid)
-            message_history = json.loads(message_history_json) if message_history_json else []
-            ai_response_text = process_message(message_history, transcription)
-            response_text = clean_response(ai_response_text)
+            payload = data.get('payload')
+            if not payload:
+                logger.warning("No payload received in 'media' event")
+                continue
 
-            logger.debug(f"AI Response: {response_text}")
+            audio_data = base64.b64decode(payload)
+            processor = stream_processors[stream_sid]
+            processor.add_audio(audio_data)
 
-            # Convert AI text to speech asynchronously
-            audio_file_path = text_to_speech_yarngpt(response_text)
-            audio_filename = os.path.basename(audio_file_path)
+            if processor.should_process():
+                audio_chunk = processor.process_buffer()
+                if audio_chunk is not None:
+                    segments, _ = whisper_model.transcribe(audio_chunk, beam_size=5)
+                    transcription = " ".join([segment.text for segment in segments])
+                    
+                    if not transcription.strip():
+                        continue
+                    
+                    logger.debug(f"Transcription: {transcription}")
 
-            # Update message history in Redis
-            message_history.append({"role": "user", "content": transcription})
-            message_history.append({"role": "assistant", "content": response_text})
-            redis_client.set(stream_sid, json.dumps(message_history))
+                    message_history_json = redis_client.get(stream_sid)
+                    message_history = json.loads(message_history_json) if message_history_json else []
+                    ai_response_text = process_message(message_history, transcription)
+                    response_text = clean_response(ai_response_text)
 
-            # Send audio back over WebSocket instead of Twilio `play()`
-            print(response_text)
-            # socketio.emit('audio_response', {
-            #     'streamSid': stream_sid,
-            #     'audio_url': f"{Config.APP_PUBLIC_URL}/audio/{audio_filename}"
-            # }, room=stream_sid)
+                    logger.debug(f"AI Response: {response_text}")
 
-            processor.last_process_time = time.time()
+                    audio_file_path = text_to_speech_yarngpt(response_text)
+                    audio_filename = os.path.basename(audio_file_path)
+
+                    message_history.append({"role": "user", "content": transcription})
+                    message_history.append({"role": "assistant", "content": response_text})
+                    redis_client.set(stream_sid, json.dumps(message_history))
+
+                    processor.last_process_time = time.time()
 
 # ========================
 #  AUDIO FILE SERVING
