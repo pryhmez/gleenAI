@@ -1,4 +1,5 @@
 import io
+import ffmpeg 
 from flask import Flask, request, jsonify, url_for, session, after_this_request, send_from_directory, abort
 # from flask_socketio import SocketIO
 from flask_sock import Sock
@@ -224,10 +225,19 @@ def handle_media(ws):
                         logger.debug(f"Audio Chunk Type: {type(audio_chunk)}")
 
                         try:
-                            # Use an in-memory file-like object
-                            audio_buffer = io.BytesIO(audio_chunk)
-                            audio_buffer.seek(0)
-                            segments, _ = whisper_model.transcribe(audio_buffer, beam_size=5)
+                            # Re-encode the audio chunk to a valid format using ffmpeg
+                            audio_input = io.BytesIO(audio_chunk)
+                            audio_output = io.BytesIO()
+                            (
+                                ffmpeg
+                                .input('pipe:0')
+                                .output('pipe:1', format='wav')
+                                .run(input=audio_input.read(), output=audio_output, overwrite_output=True)
+                            )
+                            audio_output.seek(0)
+
+                            # Use the re-encoded audio buffer
+                            segments, _ = whisper_model.transcribe(audio_output, beam_size=5)
                             transcription = " ".join([segment.text for segment in segments])
                             
                             if not transcription.strip():
@@ -255,7 +265,6 @@ def handle_media(ws):
 
                         except Exception as e:
                             logger.error(f"Error processing audio chunk: {e}")
-
 # ========================
 #  AUDIO FILE SERVING
 # ========================
