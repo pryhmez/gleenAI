@@ -84,6 +84,28 @@ def delayed_delete(filename, delay=5):
     thread = threading.Thread(target=attempt_delete)
     thread.start()
 
+# Convert raw audio bytes to WAV format
+def convert_audio_to_wav(audio_chunk):
+    try:
+        audio_input = io.BytesIO(audio_chunk)  # Wrap in BytesIO
+        audio_output = io.BytesIO()
+
+        process = (
+            ffmpeg
+            .input('pipe:0', format='s16le', acodec='pcm_s16le', ac=1, ar='16000')
+            .output('pipe:1', format='wav')
+            .run(input=audio_input.read(), capture_stdout=True, capture_stderr=True)
+        )
+
+        audio_output.write(process[0])
+        audio_output.seek(0)  # Reset pointer to start
+
+        return audio_output  # Return WAV buffer
+
+    except Exception as e:
+        logger.error(f"FFmpeg audio conversion error: {e}")
+        return None
+
 
 
 @app.route('/ping', methods=['GET'])
@@ -225,43 +247,37 @@ def handle_media(ws):
                         logger.debug(f"Audio Chunk Type: {type(audio_chunk)}")
 
                         try:
-                            # Re-encode the audio chunk to a valid format using ffmpeg
-                            audio_input = io.BytesIO(audio_chunk)
-                            audio_output = io.BytesIO()
-                            (
-                                ffmpeg
-                                .input('pipe:0')
-                                .output('pipe:1', format='wav')
-                                .run(input=audio_input.read(), output=audio_output, overwrite_output=True)
-                            )
-                            audio_output.seek(0)
+                            # Convert to WAV format
+                            wav_audio = convert_audio_to_wav(audio_chunk)
 
-                            # Use the re-encoded audio buffer
-                            segments, _ = whisper_model.transcribe(audio_output, beam_size=5)
-                            transcription = " ".join([segment.text for segment in segments])
-                            
-                            if not transcription.strip():
-                                continue
-                            
-                            logger.debug(f"Transcription: {transcription}")
+                            if wav_audio:
+                                # Use Faster Whisper to transcribe
+                                segments, _ = whisper_model.transcribe(wav_audio, beam_size=5)
+                                transcription = " ".join([segment.text for segment in segments])
+                                
+                                if not transcription.strip():
+                                    continue
+                                
+                                logger.debug(f"Transcription: {transcription}")
 
-                            message_history_json = redis_client.get(stream_sid)
-                            message_history = json.loads(message_history_json) if message_history_json else []
-                            ai_response_text = process_message(message_history, transcription)
-                            response_text = clean_response(ai_response_text)
+                                # Process AI response and generate audio
+                                message_history_json = redis_client.get(stream_sid)
+                                message_history = json.loads(message_history_json) if message_history_json else []
+                                ai_response_text = process_message(message_history, transcription)
+                                response_text = clean_response(ai_response_text)
 
-                            logger.debug(f"AI Response: {response_text}")
+                                logger.debug(f"AI Response: {response_text}")
 
-                            audio_file_path = text_to_speech_yarngpt(response_text)
-                            audio_filename = os.path.basename(audio_file_path)
+                                audio_file_path = text_to_speech_yarngpt(response_text)
+                                audio_filename = os.path.basename(audio_file_path)
 
-                            message_history.append({"role": "user", "content": transcription})
-                            message_history.append({"role": "assistant", "content": response_text})
-                            redis_client.set(stream_sid, json.dumps(message_history))
+                                message_history.append({"role": "user", "content": transcription})
+                                message_history.append({"role": "assistant", "content": response_text})
+                                redis_client.set(stream_sid, json.dumps(message_history))
 
-                            print(response_text)
+                                print(response_text)
 
-                            processor.last_process_time = time.time()
+                                processor.last_process_time = time.time()
 
                         except Exception as e:
                             logger.error(f"Error processing audio chunk: {e}")
