@@ -230,6 +230,7 @@ def handle_media(ws):
     print("Client connected")
 
     stream_to_unique_id = {}
+    last_valid_message_time = time.time()
 
     while True:
         message = ws.receive()
@@ -305,7 +306,14 @@ def handle_media(ws):
 
                         except Exception as e:
                             logger.error(f"Error processing audio chunk: {e}")
+                    last_valid_message_time = time.time()
 
+        # Add a condition to break the loop and close the connection if no valid message is received within a certain period
+        if time.time() - last_valid_message_time > 30:  # 1-minute timeout
+            print("No valid message received in the last 60 seconds. Closing connection.")
+            break
+
+    ws.close()
 
 
 # ========================
