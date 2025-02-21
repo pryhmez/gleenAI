@@ -219,33 +219,41 @@ def handle_media(ws):
                 if processor.should_process():
                     audio_chunk = processor.process_buffer()
                     if audio_chunk is not None:
-                        # Use an in-memory file-like object
-                        audio_buffer = io.BytesIO(audio_chunk)
-                        segments, _ = whisper_model.transcribe(audio_buffer, beam_size=5)
-                        transcription = " ".join([segment.text for segment in segments])
-                        
-                        if not transcription.strip():
-                            continue
-                        
-                        logger.debug(f"Transcription: {transcription}")
+                        # Debug log for audio_chunk
+                        logger.debug(f"Audio Chunk Length: {len(audio_chunk)}")
+                        logger.debug(f"Audio Chunk Type: {type(audio_chunk)}")
 
-                        message_history_json = redis_client.get(stream_sid)
-                        message_history = json.loads(message_history_json) if message_history_json else []
-                        ai_response_text = process_message(message_history, transcription)
-                        response_text = clean_response(ai_response_text)
+                        try:
+                            # Use an in-memory file-like object
+                            audio_buffer = io.BytesIO(audio_chunk)
+                            segments, _ = whisper_model.transcribe(audio_buffer, beam_size=5)
+                            transcription = " ".join([segment.text for segment in segments])
+                            
+                            if not transcription.strip():
+                                continue
+                            
+                            logger.debug(f"Transcription: {transcription}")
 
-                        logger.debug(f"AI Response: {response_text}")
+                            message_history_json = redis_client.get(stream_sid)
+                            message_history = json.loads(message_history_json) if message_history_json else []
+                            ai_response_text = process_message(message_history, transcription)
+                            response_text = clean_response(ai_response_text)
 
-                        audio_file_path = text_to_speech_yarngpt(response_text)
-                        audio_filename = os.path.basename(audio_file_path)
+                            logger.debug(f"AI Response: {response_text}")
 
-                        message_history.append({"role": "user", "content": transcription})
-                        message_history.append({"role": "assistant", "content": response_text})
-                        redis_client.set(stream_sid, json.dumps(message_history))
+                            audio_file_path = text_to_speech_yarngpt(response_text)
+                            audio_filename = os.path.basename(audio_file_path)
 
-                        print(response_text)
+                            message_history.append({"role": "user", "content": transcription})
+                            message_history.append({"role": "assistant", "content": response_text})
+                            redis_client.set(stream_sid, json.dumps(message_history))
 
-                        processor.last_process_time 
+                            print(response_text)
+
+                            processor.last_process_time = time.time()
+
+                        except Exception as e:
+                            logger.error(f"Error processing audio chunk: {e}")
 
 # ========================
 #  AUDIO FILE SERVING
