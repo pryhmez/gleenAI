@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, url_for, session, after_this_request, send_from_directory, abort
-
+# from flask_socketio import SocketIO
 from flask_sock import Sock
 from flask_session import Session
 from twilio.rest import Client
@@ -22,48 +22,69 @@ import uuid
 import logging
 import threading
 import json
+import websockets
 
 
 
-
-
-
-# Initialize Redis
-redis_client = redis.Redis(host="localhost", port=6379, db=0, decode_responses=False)
-
+redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=False)
 # Configure logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)
+try:
+    val = redis_client.ping()
+    logging.info("Connected to Redis")
+except redis.ConnectionError as e:
+    logging.error(f"Redis connection error: {e}")
 
-# Initialize Whisper Model
+# Initialize Faster Whisper
 whisper_model = WhisperModel("base", device="cuda", compute_type="float16")
 
 app = Flask(__name__)
-sock = Sock(app)  # WebSocket integration
+# socketio = SocketIO(app, cors_allowed_origins="*")
+sock = Sock(app)
 
-app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
+
+
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+app.config.from_object(Config)
+# Session configuration
+app.config['SESSION_TYPE'] = 'redis'
+app.config['SESSION_PERMANENT'] = False  # You can set True for permanent sessions
+app.config['SESSION_USE_SIGNER'] = True  # Securely sign the session
+# app.config['SESSION_REDIS'] = redis.from_url('redis://redis:6379')
+app.config['SESSION_REDIS'] = redis_client
+Session(app)
+app.logger.setLevel(logging.DEBUG)
 
 client = Client(Config.TWILIO_ACCOUNT_SID, Config.TWILIO_AUTH_TOKEN)
 
-# Stores active WebSocket connections and call sessions
-active_connections = {}
+
+
+# Stores active stream processors and call sessions
+stream_processors = {}
 call_sessions = {}
 
-def clean_response(text):
-    return text.replace("<END_OF_TURN>", "").replace("<END_OF_CALL>", "")
+def clean_response(unfiltered_response_text):
+    # Remove specific substrings from the response text
+    filtered_response_text = unfiltered_response_text.replace("<END_OF_TURN>", "").replace("<END_OF_CALL>", "")
+    return filtered_response_text
 
 def delayed_delete(filename, delay=5):
     def attempt_delete():
         time.sleep(delay)
         try:
             os.remove(filename)
-            logger.info(f"Deleted temporary audio file: {filename}")
+            logger.info(f"Successfully deleted temporary audio file: {filename}")
         except Exception as error:
-            logger.error(f"Error deleting {filename}: {error}")
+            logger.error(f"Error deleting temporary audio file: {filename} - {error}")
 
-    threading.Thread(target=attempt_delete).start()
+    thread = threading.Thread(target=attempt_delete)
+    thread.start()
 
-@app.route("/ping", methods=["GET"])
+
+
+@app.route('/ping', methods=['GET'])
 def ping():
     return "pong", 200
 
@@ -75,12 +96,12 @@ def voice():
     """Handles an incoming Twilio call and sets up streaming."""
     response = VoiceResponse()
     
-    # Start streaming to our WebSocket
+    # Start streaming to WebSocket
     start = Start()
-    start.stream(url=f"{Config.APP_PUBLIC_URL}/ws")  # Twilio connects to this WebSocket
+    start.stream(url=f"{Config.APP_PUBLIC_URL}/socket.io/")
     response.append(start)
 
-    # Play greeting
+    # Play a greeting message
     response.say("Hello, I'm your AI assistant. How can I help you?")
 
     return str(response)
@@ -90,7 +111,7 @@ def voice():
 # ========================
 @app.route("/start-call", methods=["POST"])
 def make_call():
-    """Initiates an outbound call."""
+    """Initiates an outbound call to a user."""
     unique_id = str(uuid.uuid4())
     session['conversation_stage_id'] = 1
     message_history = []
@@ -100,27 +121,31 @@ def make_call():
     customer_phonenumber = data.get('customer_phonenumber', '')
     customer_businessdetails = data.get('customer_businessdetails', 'No details provided.')
 
-    # Generate AI response
+    # Process initial message and create audio
     ai_message = process_initial_message(customer_name, customer_businessdetails)
     initial_message = clean_response(ai_message)
     audio_file_path = text_to_speech_yarngpt(initial_message)
+    audio_filename = os.path.basename(audio_file_path)
 
-    # Store conversation history in Redis
-    initial_transcript = f"Customer Name: {customer_name}. Business Details: {customer_businessdetails}"
+    # Store message history in Redis
+    initial_transcript = "Customer Name:" + customer_name + ". Customer's business Details as filled up in the website:" + customer_businessdetails
     message_history.append({"role": "user", "content": initial_transcript})
     message_history.append({"role": "assistant", "content": initial_message})
     redis_client.set(unique_id, json.dumps(message_history))
 
-    # Twilio call setup
+    # Create TwiML response
     response = VoiceResponse()
-    response.play(url_for('serve_audio', filename=os.path.basename(audio_file_path), _external=True))
-
-    connect = Connect()
-    connect.stream(url=f"{Config.APP_SOCKET_URL}")  # WebSocket URL
-    response.append(connect)
+    
+    # First establish the stream connection
+    start = Start()
+    start.stream(url=f"{Config.APP_SOCKET_URL}")
+    response.append(start)
+    
+    # Then play the greeting
+    response.play(url_for('serve_audio', filename=secure_filename(audio_filename), _external=True))
 
     call = client.calls.create(
-        twiml=str(response),
+        twiml=str(response),       
         to=customer_phonenumber,
         from_=Config.TWILIO_FROM_NUMBER,
         method="GET",
@@ -129,23 +154,29 @@ def make_call():
         status_callback_event=["initiated", "ringing", "answered", "completed"],
     )
 
+    # Track call session
     call_sessions[call.sid] = {"status": "initiated"}
     
     return jsonify({"status": "calling", "call_sid": call.sid})
+
 
 # ========================
 #  TWILIO EVENT HOOK
 # ========================
 @app.route("/event", methods=["POST"])
 def twilio_events():
+    """Handles Twilio call status events (ringing, in-progress, completed)."""
     call_sid = request.form.get("CallSid")
     call_status = request.form.get("CallStatus")
 
     if call_sid:
         call_sessions[call_sid] = {"status": call_status}
 
+    print(f"Call {call_sid} status: {call_status}")
+
+    # Handle cleanup on call completion
     if call_status in ["completed", "failed", "busy", "no-answer"]:
-        active_connections.pop(call_sid, None)
+        stream_processors.pop(call_sid, None)
         call_sessions.pop(call_sid, None)
 
     return jsonify({"status": "received"})
@@ -153,65 +184,138 @@ def twilio_events():
 # ========================
 #  WEBSOCKET HANDLING
 # ========================
-@sock.route("/ws")
-def websocket_handler(ws):
-    """Handles WebSocket connections from Twilio."""
-    call_sid = None
+# @socketio.on('connect')
+# def handle_connect():
+#     try:
+#         logger.info("Client connected to WebSocket")
+#     except Exception as e:
+#         logger.error(f"WebSocket connection error: {e}")
+
+# @socketio.on('disconnect')
+# def handle_disconnect():
+#     try:
+#         logger.info("Client disconnected from WebSocket")
+#     except Exception as e:
+#         logger.error(f"WebSocket disconnection error: {e}")
+
+# @socketio.on('start')
+# def handle_start(data):
+#     """Handles Twilio WebSocket connection start."""
+#     call_sid = data.get("streamSid", "")
+#     if call_sid:
+#         logger.info(f"Started streaming for call {call_sid}")
+#         stream_processors[call_sid] = StreamProcessor(call_sid)
+#     else:
+#         logger.warning("No streamSid received in 'start' event")
+
+
+@sock.route('/media-stream')
+def handle_media(websocket):
+    """Processes live audio from Twilio, transcribes it, generates AI responses, and plays them back."""
+    print("Client connected: " )
+    print(websocket)
+    
+    stream_sid = websocket.get('streamSid')
+    if not stream_sid or stream_sid not in stream_processors:
+        logger.warning(f"Invalid stream SID: {stream_sid}")
+        return
+
+    payload = websocket.get('payload')
+    if not payload:
+        logger.warning("No payload received in 'media' event")
+        return
+
+    # Decode audio and add to buffer
+    audio_data = base64.b64decode(payload)
+    processor = stream_processors[stream_sid]
+    processor.add_audio(audio_data)
+
+    # Process when ready
+    if processor.should_process():
+        audio_chunk = processor.process_buffer()
+        if audio_chunk is not None:
+            segments, _ = whisper_model.transcribe(audio_chunk, beam_size=5)
+            transcription = " ".join([segment.text for segment in segments])
+            
+            if not transcription.strip():
+                return  # Ignore empty transcriptions
+            
+            logger.debug(f"Transcription: {transcription}")
+
+            # Fetch AI Response
+            message_history_json = redis_client.get(stream_sid)
+            message_history = json.loads(message_history_json) if message_history_json else []
+            ai_response_text = process_message(message_history, transcription)
+            response_text = clean_response(ai_response_text)
+
+            logger.debug(f"AI Response: {response_text}")
+
+            # Convert AI text to speech asynchronously
+            audio_file_path = text_to_speech_yarngpt(response_text)
+            audio_filename = os.path.basename(audio_file_path)
+
+            # Update message history in Redis
+            message_history.append({"role": "user", "content": transcription})
+            message_history.append({"role": "assistant", "content": response_text})
+            redis_client.set(stream_sid, json.dumps(message_history))
+
+            # Send audio back over WebSocket instead of Twilio `play()`
+            print(response_text)
+            # socketio.emit('audio_response', {
+            #     'streamSid': stream_sid,
+            #     'audio_url': f"{Config.APP_PUBLIC_URL}/audio/{audio_filename}"
+            # }, room=stream_sid)
+
+            processor.last_process_time = time.time()
+
+# ========================
+#  AUDIO FILE SERVING
+# ========================
+@app.route('/audio/<filename>')
+def serve_audio(filename):
+    """Serve audio files from directory."""
+    directory = 'audio_files'
+
+    print(directory + " playing audion now")
+
+    @after_this_request
+    def remove_file(response):
+        full_path = os.path.join(directory, filename)
+        delayed_delete(full_path)
+        return response
+
     try:
-        while True:
-            message = ws.receive()
-            if not message:
-                continue
-            
-            data = json.loads(message)
-            event = data.get("event")
-            
-            if event == "start":
-                call_sid = data.get("streamSid", "")
-                if call_sid:
-                    active_connections[call_sid] = ws
-                    logger.info(f"Started WebSocket streaming for {call_sid}")
+        return send_from_directory(directory, filename)
+    except FileNotFoundError:
+        logger.error(f"Audio file not found: {filename}")
+        abort(404)
 
-            elif event == "media":
-                stream_sid = data.get("streamSid")
-                payload = data.get("media", {}).get("payload")
+# ========================
+#  STREAM PROCESSOR CLASS
+# ========================
+class StreamProcessor:
+    def __init__(self, stream_sid):
+        self.stream_sid = stream_sid
+        self.audio_buffer = []
+        self.last_process_time = time.time()
 
-                if not stream_sid or stream_sid not in active_connections or not payload:
-                    continue
-                
-                # Decode and process audio
-                audio_data = base64.b64decode(payload)
-                segments, _ = whisper_model.transcribe(audio_data, beam_size=5)
-                transcription = " ".join([segment.text for segment in segments])
+    def add_audio(self, audio_data):
+        self.audio_buffer.append(audio_data)
 
-                if not transcription.strip():
-                    continue  # Ignore empty transcriptions
-                
-                # Fetch AI response
-                message_history_json = redis_client.get(stream_sid)
-                message_history = json.loads(message_history_json) if message_history_json else []
-                ai_response_text = process_message(message_history, transcription)
-                response_text = clean_response(ai_response_text)
+    def should_process(self):
+      return len(self.audio_buffer) > 10 or time.time() - self.last_process_time > 1  # Example condition
 
-                # Convert AI text to speech
-                audio_file_path = text_to_speech_yarngpt(response_text)
 
-                # Update message history
-                message_history.append({"role": "user", "content": transcription})
-                message_history.append({"role": "assistant", "content": response_text})
-                redis_client.set(stream_sid, json.dumps(message_history))
-
-                # Send audio URL over WebSocket
-                ws.send(json.dumps({"event": "audio_response", "audio_url": f"{Config.APP_PUBLIC_URL}/audio/{os.path.basename(audio_file_path)}"}))
-
-    except Exception as e:
-        logger.error(f"WebSocket error: {e}")
-    finally:
-        if call_sid:
-            active_connections.pop(call_sid, None)
+    def process_buffer(self):
+        if self.audio_buffer:
+            audio_chunk = b"".join(self.audio_buffer)
+            self.audio_buffer = []  # Clear buffer
+            return audio_chunk
+        return None
 
 # ========================
 #  RUN APP
 # ========================
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+  app.run(host='0.0.0.0', port=5000)
+
