@@ -85,47 +85,26 @@ def delayed_delete(filename, delay=5):
     thread.start()
 
 # Convert raw audio bytes to WAV format
-# def convert_audio_to_wav(audio_chunk):
-#     try:
-#         audio_input = io.BytesIO(audio_chunk)  # Wrap in BytesIO
-#         audio_output = io.BytesIO()
-
-#         process = (
-#             ffmpeg
-#             .input('pipe:0', format='s16le', acodec='pcm_s16le', ac=1, ar='16000')
-#             .output('pipe:1', format='wav')
-#             .run(input=audio_input.read(), capture_stdout=True, capture_stderr=True)
-#         )
-
-#         audio_output.write(process[0])
-#         audio_output.seek(0)  # Reset pointer to start
-
-#         return audio_output  # Return WAV buffer
-
-#     except Exception as e:
-#         logger.error(f"FFmpeg audio conversion error: {e}")
-#         return None
-    
 def convert_audio_to_wav(audio_chunk):
-    audio_input = io.BytesIO(audio_chunk)
-    audio_output = io.BytesIO()
-    audio_input.seek(0)
-
     try:
+        audio_input = io.BytesIO(audio_chunk)  # Wrap in BytesIO
+        audio_output = io.BytesIO()
+
         process = (
             ffmpeg
-            .input('pipe:0')
+            .input('pipe:0', format='s16le', acodec='pcm_s16le', ac=1, ar='16000')
             .output('pipe:1', format='wav')
-            .run_async(pipe_stdin=True, pipe_stdout=True, pipe_stderr=True)
+            .run(input=audio_input.read(), capture_stdout=True, capture_stderr=True)
         )
-        stdout, _ = process.communicate(input=audio_input.read())
-        audio_output.write(stdout)
-        audio_output.seek(0)
-        return audio_output
-    except Exception as e:
-        logger.error(f"Error converting audio to WAV: {e}")
-        return None
 
+        audio_output.write(process[0])
+        audio_output.seek(0)  # Reset pointer to start
+
+        return audio_output  # Return WAV buffer
+
+    except Exception as e:
+        logger.error(f"FFmpeg audio conversion error: {e}")
+        return None
 
 
 @app.route('/ping', methods=['GET'])
