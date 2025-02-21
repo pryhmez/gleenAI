@@ -14,11 +14,12 @@ whisper_model = WhisperModel("base", device="cuda", compute_type="float16")
 
 
 class StreamProcessor:
-    def __init__(self, stream_sid, silence_duration=1.5, sample_rate=16000):
+    def __init__(self, stream_sid, silence_duration=1.5, sample_rate=16000, min_chunk_duration=0.2):
         self.stream_sid = stream_sid
         self.audio_buffer = []
         self.silence_duration = silence_duration
         self.sample_rate = sample_rate
+        self.min_chunk_duration = min_chunk_duration  # Minimum chunk duration in seconds
         self.speech_buffer = []
         self.last_speech_time = time.time()
         
@@ -33,14 +34,25 @@ class StreamProcessor:
         Append received audio data to buffer and process VAD.
         """
         self.audio_buffer.append(audio_data)
-        self.process_vad(audio_data)
+        if self.get_buffer_duration() >= self.min_chunk_duration:
+            self.process_vad()
     
-    def process_vad(self, audio_data):
+    def get_buffer_duration(self):
+        """
+        Calculate the duration of audio in the buffer.
+        """
+        total_samples = len(b''.join(self.audio_buffer)) // 2  # 2 bytes per sample
+        return total_samples / self.sample_rate
+    
+    def process_vad(self):
         """
         Process Voice Activity Detection (VAD) and determine when the user stops speaking.
         """
+        combined_audio = b''.join(self.audio_buffer)
+        self.audio_buffer = []
+
         # Convert audio_data to float32 numpy array
-        audio_array = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
+        audio_array = np.frombuffer(combined_audio, dtype=np.int16).astype(np.float32) / 32768.0
         audio_tensor = torch.from_numpy(audio_array)
         
         # Pass audio chunk to VADIterator
@@ -49,7 +61,7 @@ class StreamProcessor:
         if speech_probs:
             # Detected speech in this chunk
             self.last_speech_time = time.time()
-            self.speech_buffer.append(audio_data)
+            self.speech_buffer.append(combined_audio)
         else:
             # Check if silence duration exceeded
             if time.time() - self.last_speech_time > self.silence_duration:
