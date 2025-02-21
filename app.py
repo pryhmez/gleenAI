@@ -245,7 +245,7 @@ def handle_media(ws):
 
                         print(response_text)
 
-                        processor.last_process_time = time.time()
+                        processor.last_process_time 
 
 # ========================
 #  AUDIO FILE SERVING
