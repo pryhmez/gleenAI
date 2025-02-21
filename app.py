@@ -221,6 +221,7 @@ def connect_media_stream():
     start.stream(url=f"{Config.APP_SOCKET_URL}")
     response.append(start)
     response.say("You can start speaking now.")
+    response.pause(length=60)
     return str(response)
 
 
