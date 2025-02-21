@@ -25,6 +25,7 @@ import logging
 import threading
 import json
 import websockets
+import numpy as np
 
 
 
@@ -407,21 +408,39 @@ def serve_audio(filename):
 #             self.audio_buffer = []  
 #             return audio_chunk
 #         return None
+
 class StreamProcessor:
-    def __init__(self, stream_sid):
+    def __init__(self, stream_sid, silence_threshold=0.01, silence_duration=3):
         self.stream_sid = stream_sid
         self.audio_buffer = []
         self.last_audio_time = time.time()
-        self.silence_threshold = 3  # Threshold in seconds to consider as silence
+        self.silence_threshold = silence_threshold  # Amplitude threshold to consider as silence
+        self.silence_duration = silence_duration    # Duration in seconds to consider as silence
 
     def add_audio(self, audio_data):
         self.audio_buffer.append(audio_data)
-        print(audio_data)
         self.last_audio_time = time.time()
 
     def is_silence(self):
-        # Check if the current time exceeds the last audio time by the threshold
-        return time.time() - self.last_audio_time >= self.silence_threshold
+        # Check if the buffer has audio data
+        if not self.audio_buffer:
+            return False
+        
+        # Combine all audio data in the buffer
+        combined_audio = b''.join(self.audio_buffer)
+        
+        # Convert audio data to numpy array
+        audio_array = np.frombuffer(combined_audio, dtype=np.int16)
+        
+        # Calculate the amplitude of the audio signal
+        amplitude = np.abs(audio_array).mean()
+        
+        # Check if the amplitude is below the threshold for the silence duration
+        if amplitude < self.silence_threshold:
+            if time.time() - self.last_audio_time >= self.silence_duration:
+                return True
+        
+        return False
 
     def process_buffer(self):
         if self.audio_buffer:
