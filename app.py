@@ -309,16 +309,16 @@ def handle_media(ws):
                         # Send audio response back to the user if needed
                         # Implementation depends on your requirements
 
-            else:
-                # Handle the case when no message is received
-                pass
+                else:
+                    # Handle other events if necessary
+                    pass
 
         except Exception as e:
             logger.error(f"Error in WebSocket handling: {e}")
             break
 
-
     ws.close()
+
 
 
 

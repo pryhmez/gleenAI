@@ -13,75 +13,79 @@ from audio_helpers import text_to_speech, save_audio_file, convert_audio_to_wav
 whisper_model = WhisperModel("base", device="cuda", compute_type="float16")
 
 
+
 class StreamProcessor:
-    def __init__(self, stream_sid, silence_duration=1.5, sample_rate=16000, min_chunk_duration=0.2):
+    def __init__(self, stream_sid, silence_duration=1.5, sample_rate=16000):
         self.stream_sid = stream_sid
-        self.audio_buffer = []
+        self.audio_buffer = bytes()
         self.silence_duration = silence_duration
         self.sample_rate = sample_rate
-        self.min_chunk_duration = min_chunk_duration  # Minimum chunk duration in seconds
         self.speech_buffer = []
         self.last_speech_time = time.time()
         
         # Load Silero VAD
-        self.model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad', model='silero_vad', force_reload=False)
-        (self.get_speech_timestamps, _, _, VADIterator, _) = utils
-        
-        self.vad_iterator = VADIterator(self.model)
-    
+        self.model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
+                                           model='silero_vad',
+                                           force_reload=False)
+        (self.get_speech_timestamps, self.save_audio, self.read_audio,
+         self.VADIterator, self.collect_chunks) = utils
+
+        self.vad_iterator = self.VADIterator(self.model)
+        self.window_size_samples = 512  # For 16000 Hz audio
+        self.num_bytes_per_sample = 2   # int16 has 2 bytes per sample
+
     def add_audio(self, audio_data):
         """
         Append received audio data to buffer and process VAD.
         """
-        self.audio_buffer.append(audio_data)
-        if self.get_buffer_duration() >= self.min_chunk_duration:
-            self.process_vad()
-    
-    def get_buffer_duration(self):
-        """
-        Calculate the duration of audio in the buffer.
-        """
-        total_samples = len(b''.join(self.audio_buffer)) // 2  # 2 bytes per sample
-        return total_samples / self.sample_rate
-    
+        self.audio_buffer += audio_data
+        self.process_vad()
+
     def process_vad(self):
         """
         Process Voice Activity Detection (VAD) and determine when the user stops speaking.
         """
-        combined_audio = b''.join(self.audio_buffer)
-        self.audio_buffer = []
+        # Calculate total samples in buffer
+        total_samples = len(self.audio_buffer) // self.num_bytes_per_sample
+        # Process full chunks of window_size_samples
+        while total_samples >= self.window_size_samples:
+            # Extract a chunk of window_size_samples
+            chunk_bytes = self.audio_buffer[:self.window_size_samples * self.num_bytes_per_sample]
+            self.audio_buffer = self.audio_buffer[self.window_size_samples * self.num_bytes_per_sample:]
+            total_samples -= self.window_size_samples
 
-        # Convert audio_data to float32 numpy array
-        audio_array = np.frombuffer(combined_audio, dtype=np.int16).astype(np.float32) / 32768.0
-        audio_tensor = torch.from_numpy(audio_array)
-        
-        # Pass audio chunk to VADIterator
-        speech_probs = self.vad_iterator(audio_tensor, return_seconds=True)
-        
-        if speech_probs:
-            # Detected speech in this chunk
-            self.last_speech_time = time.time()
-            self.speech_buffer.append(combined_audio)
-        else:
-            # Check if silence duration exceeded
-            if time.time() - self.last_speech_time > self.silence_duration:
-                if self.speech_buffer:
-                    transcription = self.transcribe_audio()
-                    if transcription:
-                        # Handle transcription (e.g., send response)
-                        print(f"Transcription: {transcription}")
-                    self.speech_buffer = []
-                    self.vad_iterator.reset_states()
-                    self.last_speech_time = time.time()
-    
+            # Convert audio_data to float32 numpy array
+            audio_array = np.frombuffer(chunk_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+            audio_tensor = torch.from_numpy(audio_array)
+
+            # Pass audio chunk to VADIterator
+            speech_dict = self.vad_iterator(audio_tensor)
+            if speech_dict:
+                # Detected speech in this chunk
+                self.last_speech_time = time.time()
+                self.speech_buffer.append(chunk_bytes)
+            else:
+                # Check if silence duration exceeded
+                if time.time() - self.last_speech_time > self.silence_duration:
+                    if self.speech_buffer:
+                        transcription = self.transcribe_audio()
+                        if transcription:
+                            # Handle transcription (e.g., send response)
+                            print(f"Transcription: {transcription}")
+                        self.speech_buffer = []
+                        self.vad_iterator.reset_states()
+
     def transcribe_audio(self):
         """
         Transcribe buffered speech after detecting silence.
         """
         if not self.speech_buffer:
             return None
-        
+
         audio_chunk = b"".join(self.speech_buffer)
+        self.speech_buffer = []  # Clear after using
+
+        # Save audio_chunk to WAV format for transcription
         wav_audio = convert_audio_to_wav(audio_chunk)
         if wav_audio:
             segments, _ = whisper_model.transcribe(wav_audio, beam_size=5)
@@ -89,6 +93,7 @@ class StreamProcessor:
             if transcription.strip():
                 return transcription
         return None
+
 
 
 
