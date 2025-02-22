@@ -15,7 +15,7 @@ whisper_model = WhisperModel("base", device="cuda", compute_type="float16")
  
 
 class StreamProcessor:
-    def __init__(self, stream_sid, silence_duration=1.5, sample_rate=16000):
+    def __init__(self, stream_sid, silence_duration=3, sample_rate=16000):
         self.stream_sid = stream_sid
         self.audio_buffer = bytes()
         self.silence_duration = silence_duration
@@ -40,7 +40,7 @@ class StreamProcessor:
         """
         Append received audio data to buffer and process VAD.
         """
-        print("Adding audio data")
+        # print("Adding audio data")
         self.audio_buffer += audio_data
         self.process_vad()
 
@@ -50,7 +50,7 @@ class StreamProcessor:
         """
         # Calculate total samples in buffer
         total_samples = len(self.audio_buffer) // self.num_bytes_per_sample
-        print(f"Total samples in buffer: {total_samples}")
+        # print(f"Total samples in buffer: {total_samples}")
         # Process full chunks of window_size_samples
         while total_samples >= self.window_size_samples:
             # Extract a chunk of window_size_samples
