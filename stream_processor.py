@@ -76,7 +76,7 @@ class StreamProcessor:
         """
         Save the compiled speech buffer to a file for inspection.
         """
-        print(f"=======================================================================================================Saved compiled audio to {filename}")
+        print(f"=======================================================================================================Saving")
 
         if self.speech_buffer:
             compiled_audio = b"".join(self.speech_buffer)
