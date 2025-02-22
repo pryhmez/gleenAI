@@ -40,6 +40,7 @@ class StreamProcessor:
         """
         Append received audio data to buffer and process VAD.
         """
+        print("Adding audio data")
         self.audio_buffer += audio_data
         self.process_vad()
 
@@ -49,6 +50,7 @@ class StreamProcessor:
         """
         # Calculate total samples in buffer
         total_samples = len(self.audio_buffer) // self.num_bytes_per_sample
+        print(f"Total samples in buffer: {total_samples}")
         # Process full chunks of window_size_samples
         while total_samples >= self.window_size_samples:
             # Extract a chunk of window_size_samples
@@ -61,14 +63,15 @@ class StreamProcessor:
             audio_tensor = torch.from_numpy(audio_array)
 
             # Pass audio chunk to VADIterator
+            print("Passing chunk to VADIterator")
             speech_dict = self.vad_iterator(audio_tensor)
             if speech_dict:
-                print('speech')
+                print("Detected speech in chunk")
                 # Detected speech in this chunk
                 self.last_speech_time = time.time()
                 self.speech_buffer.append(chunk_bytes)
             else:
-                print('silence')
+                print("Silence detected")
                 # Check if silence duration exceeded
                 if time.time() - self.last_speech_time > self.silence_duration:
                     print('silence grace elapsed')
