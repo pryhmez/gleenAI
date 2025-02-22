@@ -89,7 +89,7 @@ class StreamProcessor:
                 wf.setsampwidth(self.num_bytes_per_sample)
                 wf.setframerate(self.sample_rate)
                 wf.writeframes(compiled_audio)
-            print(f"Saved compiled audio to {filename}")
+            print(f"=======================================================================================================Saved compiled audio to {filename}")
 
     def process_vad(self):
         """
