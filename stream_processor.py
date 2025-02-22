@@ -20,7 +20,7 @@ whisper_model = WhisperModel("base", device="cuda", compute_type="float16")
  
 
 class StreamProcessor:
-    def __init__(self, stream_sid, silence_duration=3, sample_rate=8000, save_interval=10):
+    def __init__(self, stream_sid, silence_duration=4, sample_rate=8000, save_interval=10):
         self.stream_sid = stream_sid
         self.audio_buffer = bytes()
         self.silence_duration = silence_duration
@@ -159,6 +159,7 @@ class StreamProcessor:
                 if time.time() - self.last_speech_time > self.silence_duration:
                     print("Silence detected")
                     if self.speech_buffer:
+                        print("================================================================================================================================Transcription started")
                         transcription = self.transcribe_audio()
                         if transcription:
                             print(f"Transcription: {transcription}")
@@ -167,10 +168,10 @@ class StreamProcessor:
 
         # Check if 30 seconds have passed and save the compiled audio
         if time.time() - self.last_save_time > self.save_interval:
-            self.save_compiled_audio()
+            # self.save_compiled_audio()
             self.last_save_time = time.time()
-        else:
-            print(f"Time since last save: {time.time() - self.last_save_time} seconds")
+        # else:
+        #     print(f"Time since last save: {time.time() - self.last_save_time} seconds")
 
     def transcribe_audio(self):
         """
