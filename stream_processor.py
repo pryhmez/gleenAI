@@ -17,7 +17,7 @@ whisper_model = WhisperModel("base", device="cuda", compute_type="float16")
  
 
 class StreamProcessor:
-    def __init__(self, stream_sid, silence_duration=3, sample_rate=16000, save_interval=30):
+    def __init__(self, stream_sid, silence_duration=3, sample_rate=16000, save_interval=10):
         self.stream_sid = stream_sid
         self.audio_buffer = bytes()
         self.silence_duration = silence_duration
