@@ -63,7 +63,7 @@ class StreamProcessor:
         Save the raw audio data to a file for inspection.
         """
         timestamp = time.strftime("%Y%m%d-%H%M%S")
-        filename = os.path.join('audio_files', f"compiled_audio_{timestamp}.wav")
+        filename = os.path.join('audio_files', f"chunk_audio_{timestamp}.wav")
         with wave.open(filename, 'wb') as wf:
             wf.setnchannels(1)
             wf.setsampwidth(self.num_bytes_per_sample)
