@@ -3,6 +3,7 @@
 import torch
 import numpy as np
 import time
+import os
 import wave
 from silero_vad import get_speech_timestamps, VADIterator
 from faster_whisper import WhisperModel
@@ -16,13 +17,19 @@ whisper_model = WhisperModel("base", device="cuda", compute_type="float16")
  
 
 class StreamProcessor:
-    def __init__(self, stream_sid, silence_duration=1.5, sample_rate=16000):
+    def __init__(self, stream_sid, silence_duration=3, sample_rate=16000, save_interval=30):
         self.stream_sid = stream_sid
         self.audio_buffer = bytes()
         self.silence_duration = silence_duration
         self.sample_rate = sample_rate
         self.speech_buffer = []
         self.last_speech_time = time.time()
+        self.last_save_time = time.time()  # Timer for saving audio
+        self.save_interval = save_interval  # Save interval in seconds
+        self.audio_directory = 'audio'  # Directory to save audio files
+
+        # Ensure the audio directory exists
+        os.makedirs(self.audio_directory, exist_ok=True)
 
         # Load Silero VAD
         self.model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
@@ -55,12 +62,34 @@ class StreamProcessor:
         """
         Save the raw audio data to a file for inspection.
         """
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        filename = os.path.join('audio_files', f"compiled_audio_{timestamp}.wav")
         with wave.open(filename, 'wb') as wf:
             wf.setnchannels(1)
             wf.setsampwidth(self.num_bytes_per_sample)
             wf.setframerate(self.sample_rate)
             wf.writeframes(audio_data)
         print(f"Saved audio to {filename}")
+
+
+    def save_compiled_audio(self):
+        """
+        Save the compiled speech buffer to a file for inspection.
+        """
+        if self.speech_buffer:
+            compiled_audio = b"".join(self.speech_buffer)
+            self.speech_buffer = []  # Clear after saving
+
+            # Define the filename with timestamp
+            timestamp = time.strftime("%Y%m%d-%H%M%S")
+            filename = os.path.join(self.audio_directory, f"compiled_audio_{timestamp}.wav")
+
+            with wave.open(filename, 'wb') as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(self.num_bytes_per_sample)
+                wf.setframerate(self.sample_rate)
+                wf.writeframes(compiled_audio)
+            print(f"Saved compiled audio to {filename}")
 
     def process_vad(self):
         """
@@ -69,7 +98,7 @@ class StreamProcessor:
         # Calculate total samples in buffer
         total_samples = len(self.audio_buffer) // self.num_bytes_per_sample
         print(f"Total samples in buffer: {total_samples}")
-        
+
         # Process full chunks of window_size_samples
         while total_samples >= self.window_size_samples:
             # Extract a chunk of window_size_samples
@@ -81,7 +110,6 @@ class StreamProcessor:
             audio_array = np.frombuffer(chunk_bytes, dtype=np.int16).astype(np.float32) / 32768.0
             audio_tensor = torch.from_numpy(audio_array)
 
-            # Save the audio chunk for inspection
             self.save_audio_file(chunk_bytes, 'chunk_audio.wav')
 
             # Print details about the audio tensor
@@ -106,6 +134,11 @@ class StreamProcessor:
                             print(f"Transcription: {transcription}")
                         self.speech_buffer = []
                         self.vad_iterator.reset_states()
+
+        # Check if 30 seconds have passed and save the compiled audio
+        if time.time() - self.last_save_time > self.save_interval:
+            self.save_compiled_audio('compiled_audio.wav')
+            self.last_save_time = time.time()
 
     def transcribe_audio(self):
         """
