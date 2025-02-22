@@ -12,7 +12,7 @@ from audio_helpers import text_to_speech, save_audio_file, convert_audio_to_wav
 # Initialize Faster Whisper
 whisper_model = WhisperModel("base", device="cuda", compute_type="float16")
 
-
+ 
 
 class StreamProcessor:
     def __init__(self, stream_sid, silence_duration=1.5, sample_rate=16000):
@@ -22,11 +22,14 @@ class StreamProcessor:
         self.sample_rate = sample_rate
         self.speech_buffer = []
         self.last_speech_time = time.time()
+
+        # device = torch.device('cuda')
         
         # Load Silero VAD
         self.model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
                                            model='silero_vad',
-                                           force_reload=False)
+                                           force_reload=False,
+                                           device=device)
         (self.get_speech_timestamps, self.save_audio, self.read_audio,
          self.VADIterator, self.collect_chunks) = utils
 
@@ -61,12 +64,15 @@ class StreamProcessor:
             # Pass audio chunk to VADIterator
             speech_dict = self.vad_iterator(audio_tensor)
             if speech_dict:
+                print('speech')
                 # Detected speech in this chunk
                 self.last_speech_time = time.time()
                 self.speech_buffer.append(chunk_bytes)
             else:
+                print('silence')
                 # Check if silence duration exceeded
                 if time.time() - self.last_speech_time > self.silence_duration:
+                    print('silence grace elapsed')
                     if self.speech_buffer:
                         transcription = self.transcribe_audio()
                         if transcription:
