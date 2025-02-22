@@ -79,6 +79,8 @@ class StreamProcessor:
         print(f"=======================================================================================================Saving")
 
         if self.speech_buffer:
+            print(f"=======================================================================================================compiling buffer")
+
             compiled_audio = b"".join(self.speech_buffer)
             self.speech_buffer = []  # Clear after saving
 
@@ -92,6 +94,8 @@ class StreamProcessor:
                 wf.setframerate(self.sample_rate)
                 wf.writeframes(compiled_audio)
             print(f"=======================================================================================================Saved compiled audio to {filename}")
+
+        print(f"=======================================================================================================no buffer")
 
     def process_vad(self):
         """
