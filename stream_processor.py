@@ -65,7 +65,7 @@ class StreamProcessor:
 
             # Pass audio chunk to VADIterator
             print(f"Processing chunk of size: {audio_tensor.size()}")
-            print(f"Audio tensor: {audio_tensor}"
+            print(f"Audio tensor: {audio_tensor}")
             print("Passing chunk to VADIterator")
             speech_dict = self.vad_iterator(audio_tensor)
             if speech_dict:
