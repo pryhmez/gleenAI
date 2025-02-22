@@ -50,8 +50,8 @@ class StreamProcessor:
         """
         Append received audio data to buffer and process VAD.
         """
-        print("Adding audio data")
-        print(f"Audio data length: {len(audio_data)} bytes")
+        # print("Adding audio data")
+        # print(f"Audio data length: {len(audio_data)} bytes")
         # Convert μ-law encoded audio data to linear PCM
         try:
             pcm_audio_data = audioop.ulaw2lin(audio_data, self.num_bytes_per_sample)
@@ -142,11 +142,11 @@ class StreamProcessor:
             # self.save_audio_file(chunk_bytes, 'chunk_audio.wav')
 
             # Print details about the audio tensor
-            print(f"Processing chunk of size: {audio_tensor.size()}")
+            # print(f"Processing chunk of size: {audio_tensor.size()}")
             # print(f"Audio tensor: {audio_tensor}")
 
             # Pass audio chunk to VADIterator
-            print("Passing chunk to VADIterator")
+            # print("Passing chunk to VADIterator")
             speech_dict = self.vad_iterator(audio_tensor)
             print(f"VAD output: {speech_dict}")
             if speech_dict:
