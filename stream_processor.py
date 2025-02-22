@@ -23,7 +23,7 @@ class StreamProcessor:
         self.speech_buffer = []
         self.last_speech_time = time.time()
 
-        # device = torch.device('cuda')
+        device = torch.device('cuda')
         
         # Load Silero VAD
         self.model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
