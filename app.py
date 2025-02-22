@@ -226,11 +226,11 @@ def transcribe_audio_file(audio_file_path):
 def connect_media_stream():
     unique_id = request.args.get('unique_id')
 
-    audio_file_name = "-343418298932331262.wav"
-    audio_files_directory = "audio_files"
-    audio_file_path = os.path.join(audio_files_directory, audio_file_name)
+    # audio_file_name = "-343418298932331262.wav"
+    # audio_files_directory = "audio_files"
+    # audio_file_path = os.path.join(audio_files_directory, audio_file_name)
     
-    transcribe_audio_file(audio_file_path)
+    # transcribe_audio_file(audio_file_path)
 
     response = VoiceResponse()
     start = Start()

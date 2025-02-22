@@ -3,6 +3,7 @@
 import torch
 import numpy as np
 import time
+import wave
 from silero_vad import get_speech_timestamps, VADIterator
 from faster_whisper import WhisperModel
 
@@ -15,7 +16,7 @@ whisper_model = WhisperModel("base", device="cuda", compute_type="float16")
  
 
 class StreamProcessor:
-    def __init__(self, stream_sid, silence_duration=3, sample_rate=16000):
+    def __init__(self, stream_sid, silence_duration=1.5, sample_rate=16000):
         self.stream_sid = stream_sid
         self.audio_buffer = bytes()
         self.silence_duration = silence_duration
@@ -23,12 +24,10 @@ class StreamProcessor:
         self.speech_buffer = []
         self.last_speech_time = time.time()
 
-        
         # Load Silero VAD
         self.model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
                                            model='silero_vad',
-                                           force_reload=False
-                                           )
+                                           force_reload=False)
         (self.get_speech_timestamps, self.save_audio, self.read_audio,
          self.VADIterator, self.collect_chunks) = utils
 
@@ -40,10 +39,28 @@ class StreamProcessor:
         """
         Append received audio data to buffer and process VAD.
         """
-        # print("Adding audio data")
+        print("Adding audio data")
         print(f"Audio data length: {len(audio_data)} bytes")
         self.audio_buffer += audio_data
         self.process_vad()
+
+    def get_buffer_duration(self):
+        """
+        Calculate the duration of audio in the buffer.
+        """
+        total_samples = len(self.audio_buffer) // self.num_bytes_per_sample
+        return total_samples / self.sample_rate
+
+    def save_audio_file(self, audio_data, filename):
+        """
+        Save the raw audio data to a file for inspection.
+        """
+        with wave.open(filename, 'wb') as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(self.num_bytes_per_sample)
+            wf.setframerate(self.sample_rate)
+            wf.writeframes(audio_data)
+        print(f"Saved audio to {filename}")
 
     def process_vad(self):
         """
@@ -51,7 +68,8 @@ class StreamProcessor:
         """
         # Calculate total samples in buffer
         total_samples = len(self.audio_buffer) // self.num_bytes_per_sample
-        # print(f"Total samples in buffer: {total_samples}")
+        print(f"Total samples in buffer: {total_samples}")
+        
         # Process full chunks of window_size_samples
         while total_samples >= self.window_size_samples:
             # Extract a chunk of window_size_samples
@@ -63,25 +81,28 @@ class StreamProcessor:
             audio_array = np.frombuffer(chunk_bytes, dtype=np.int16).astype(np.float32) / 32768.0
             audio_tensor = torch.from_numpy(audio_array)
 
-            # Pass audio chunk to VADIterator
+            # Save the audio chunk for inspection
+            self.save_audio_file(chunk_bytes, 'chunk_audio.wav')
+
+            # Print details about the audio tensor
             print(f"Processing chunk of size: {audio_tensor.size()}")
             print(f"Audio tensor: {audio_tensor}")
+
+            # Pass audio chunk to VADIterator
             print("Passing chunk to VADIterator")
             speech_dict = self.vad_iterator(audio_tensor)
             if speech_dict:
-                print("Detected speech in chunk")
                 # Detected speech in this chunk
+                print("Detected speech in chunk")
                 self.last_speech_time = time.time()
                 self.speech_buffer.append(chunk_bytes)
             else:
-                print("Silence detected")
                 # Check if silence duration exceeded
                 if time.time() - self.last_speech_time > self.silence_duration:
-                    print('silence grace elapsed')
+                    print("Silence detected")
                     if self.speech_buffer:
                         transcription = self.transcribe_audio()
                         if transcription:
-                            # Handle transcription (e.g., send response)
                             print(f"Transcription: {transcription}")
                         self.speech_buffer = []
                         self.vad_iterator.reset_states()
