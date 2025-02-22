@@ -23,6 +23,7 @@ class StreamProcessor:
         self.silence_duration = silence_duration
         self.sample_rate = sample_rate
         self.speech_buffer = []
+        self.all_audio_buffer = []
         self.last_speech_time = time.time()
         self.last_save_time = time.time()  # Timer for saving audio
         self.save_interval = save_interval  # Save interval in seconds
@@ -49,6 +50,7 @@ class StreamProcessor:
         print("Adding audio data")
         print(f"Audio data length: {len(audio_data)} bytes")
         self.audio_buffer += audio_data
+        self.all_audio_buffer.append(audio_data)
         self.process_vad()
 
     def get_buffer_duration(self):
@@ -72,30 +74,30 @@ class StreamProcessor:
         print(f"Saved audio to {filename}")
 
 
-    def save_compiled_audio(self):
-        """
-        Save the compiled speech buffer to a file for inspection.
-        """
-        print(f"=======================================================================================================Saving")
+        def save_compiled_audio(self):
+            """
+            Save the compiled speech buffer to a file for inspection.
+            """
+            print("================================================================================================================================Saving compiled audio...")
 
-        if self.speech_buffer:
-            print(f"=======================================================================================================compiling buffer")
+            if self.all_audio_buffer:
+                print("Compiling all audio buffer...")
 
-            compiled_audio = b"".join(self.speech_buffer)
-            self.speech_buffer = []  # Clear after saving
+                compiled_audio = b"".join(self.all_audio_buffer)
+                self.all_audio_buffer = []  # Clear after saving
 
-            # Define the filename with timestamp
-            timestamp = time.strftime("%Y%m%d-%H%M%S")
-            filename = os.path.join(self.audio_directory, f"compiled_audio_{timestamp}.wav")
+                # Define the filename with timestamp
+                timestamp = time.strftime("%Y%m%d-%H%M%S")
+                filename = os.path.join(self.audio_directory, f"compiled_audio_{timestamp}.wav")
 
-            with wave.open(filename, 'wb') as wf:
-                wf.setnchannels(1)
-                wf.setsampwidth(self.num_bytes_per_sample)
-                wf.setframerate(self.sample_rate)
-                wf.writeframes(compiled_audio)
-            print(f"=======================================================================================================Saved compiled audio to {filename}")
-
-        print(f"=======================================================================================================no buffer")
+                with wave.open(filename, 'wb') as wf:
+                    wf.setnchannels(1)
+                    wf.setsampwidth(self.num_bytes_per_sample)
+                    wf.setframerate(self.sample_rate)
+                    wf.writeframes(compiled_audio)
+                print(f"================================================================================================================================Saved compiled audio to {filename}")
+            else:
+                print("================================================================================================================================No audio buffer to save.")
 
     def process_vad(self):
         """
