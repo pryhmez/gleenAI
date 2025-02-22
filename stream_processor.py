@@ -137,7 +137,7 @@ class StreamProcessor:
 
         # Check if 30 seconds have passed and save the compiled audio
         if time.time() - self.last_save_time > self.save_interval:
-            self.save_compiled_audio('compiled_audio.wav')
+            self.save_compiled_audio()
             self.last_save_time = time.time()
 
     def transcribe_audio(self):
