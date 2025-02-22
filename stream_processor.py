@@ -90,6 +90,8 @@ class StreamProcessor:
             timestamp = time.strftime("%Y%m%d-%H%M%S")
             filename = os.path.join(self.audio_directory, f"compiled_audio_{timestamp}.wav")
 
+            print(f"Compiled audio data length: {len(compiled_audio)} bytes")
+
             with wave.open(filename, 'wb') as wf:
                 wf.setnchannels(1)
                 wf.setsampwidth(self.num_bytes_per_sample)
@@ -126,6 +128,7 @@ class StreamProcessor:
 
             # Pass audio chunk to VADIterator
             print("Passing chunk to VADIterator")
+            print(f"VAD output: {speech_dict}")
             speech_dict = self.vad_iterator(audio_tensor)
             if speech_dict:
                 # Detected speech in this chunk
@@ -147,6 +150,8 @@ class StreamProcessor:
         if time.time() - self.last_save_time > self.save_interval:
             self.save_compiled_audio()
             self.last_save_time = time.time()
+        else:
+            print(f"Time since last save: {time.time() - self.last_save_time} seconds")
 
     def transcribe_audio(self):
         """
