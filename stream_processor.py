@@ -42,7 +42,7 @@ class StreamProcessor:
          self.VADIterator, self.collect_chunks) = utils
 
         self.vad_iterator = self.VADIterator(self.model)
-        self.window_size_samples = 256  # For 16000 Hz audio
+        self.window_size_samples = 512  # For 16000 Hz audio
         self.num_bytes_per_sample = 2   # int16 has 2 bytes per sample
 
     def add_audio(self, audio_data):
