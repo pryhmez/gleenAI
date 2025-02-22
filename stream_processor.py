@@ -41,6 +41,7 @@ class StreamProcessor:
         Append received audio data to buffer and process VAD.
         """
         # print("Adding audio data")
+        print(f"Audio data length: {len(audio_data)} bytes")
         self.audio_buffer += audio_data
         self.process_vad()
 
@@ -63,6 +64,8 @@ class StreamProcessor:
             audio_tensor = torch.from_numpy(audio_array)
 
             # Pass audio chunk to VADIterator
+            print(f"Processing chunk of size: {audio_tensor.size()}")
+            print(f"Audio tensor: {audio_tensor}"
             print("Passing chunk to VADIterator")
             speech_dict = self.vad_iterator(audio_tensor)
             if speech_dict:
