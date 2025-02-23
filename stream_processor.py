@@ -139,7 +139,7 @@ class StreamProcessor:
             audio_array = np.frombuffer(chunk_bytes, dtype=np.int16).astype(np.float32) / 32768.0
             audio_tensor = torch.from_numpy(audio_array)
 
-            # self.save_audio_file(chunk_bytes, 'chunk_audio.wav')
+            self.save_audio_file(chunk_bytes, 'chunk_audio.wav')
 
             # Print details about the audio tensor
             # print(f"Processing chunk of size: {audio_tensor.size()}")
@@ -168,7 +168,7 @@ class StreamProcessor:
 
         # Check if 30 seconds have passed and save the compiled audio
         if time.time() - self.last_save_time > self.save_interval:
-            # self.save_compiled_audio()
+            self.save_compiled_audio()
             self.last_save_time = time.time()
         # else:
         #     print(f"Time since last save: {time.time() - self.last_save_time} seconds")
