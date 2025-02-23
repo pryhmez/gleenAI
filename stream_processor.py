@@ -43,7 +43,7 @@ class StreamProcessor:
          self.VADIterator, self.collect_chunks) = utils
 
         self.vad_iterator = self.VADIterator(self.model)
-        self.window_size_samples = 512  # For 16000 Hz audio
+        self.window_size_samples = 24000 
         self.num_bytes_per_sample = 2   # int16 has 2 bytes per sample
 
     def add_audio(self, audio_data):
@@ -147,24 +147,26 @@ class StreamProcessor:
 
             # Pass audio chunk to VADIterator
             # print("Passing chunk to VADIterator")
-            speech_dict = self.vad_iterator(audio_tensor)
-            print(f"VAD output: {speech_dict}")
-            if speech_dict:
-                # Detected speech in this chunk
-                print("Detected speech in chunk")
-                self.last_speech_time = time.time()
-                self.speech_buffer.append(chunk_bytes)
-            else:
-                # Check if silence duration exceeded
-                if time.time() - self.last_speech_time > self.silence_duration:
-                    print("Silence detected")
-                    if self.speech_buffer:
-                        print("================================================================================================================================Transcription started")
-                        transcription = self.transcribe_audio()
-                        if transcription:
-                            print(f"Transcription: {transcription}")
-                        self.speech_buffer = []
-                        self.vad_iterator.reset_states()
+            try:
+                speech_dict = self.vad_iterator(audio_tensor)
+                print(f"VAD output: {speech_dict}")
+                if speech_dict:
+                    print("Detected speech in chunk")
+                    self.last_speech_time = time.time()
+                    self.speech_buffer.append(chunk_bytes)
+                else:
+                    if time.time() - self.last_speech_time > self.silence_duration:
+                        print("Silence detected")
+                        if self.speech_buffer:
+                            print("================================================================================================================================Transcription started")
+                            transcription = self.transcribe_audio()
+                            if transcription:
+                                print(f"Transcription: {transcription}")
+                            self.speech_buffer = []
+                            self.vad_iterator.reset_states()
+            except ValueError as e:
+                print(f"VAD processing error: {e}")
+                break  # Exit the loop to accumulate more data
 
         # Check if 30 seconds have passed and save the compiled audio
         if time.time() - self.last_save_time > self.save_interval:
