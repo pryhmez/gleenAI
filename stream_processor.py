@@ -75,7 +75,7 @@ class StreamProcessor:
         """
         # Calculate total samples in buffer
         total_samples = len(self.audio_buffer) // self.num_bytes_per_sample
-        print(f"Total samples in buffer: {total_samples}")
+        # print(f"Total samples in buffer: {total_samples}")
 
         # Process full chunks of window_size_samples
         while total_samples >= self.window_size_samples:
@@ -99,7 +99,7 @@ class StreamProcessor:
             # Pass audio chunk to VADIterator
             try:
                 speech_dict = self.vad_iterator(audio_tensor)
-                print(f"VAD output: {speech_dict}")
+                # print(f"VAD output: {speech_dict}")
 
                 if speech_dict is not None:
                     if 'start' in speech_dict:
@@ -114,9 +114,11 @@ class StreamProcessor:
                         self.end_speech_time = time.time()
                         self.speech_buffer.append(chunk_bytes)
                     elif self.recording_session_active:
+                        print('still in active session waiting for timout')
                         self.speech_buffer.append(chunk_bytes)
                 else:
                     if self.recording_session_active:
+                        print('still in active session waiting for timout')
                         self.speech_buffer.append(chunk_bytes)
 
             except ValueError as e:
@@ -140,6 +142,7 @@ class StreamProcessor:
         """
         Transcribe buffered speech after detecting silence.
         """
+        print('=================================================================================================starting transcription')
         if not self.speech_buffer:
             return None
 
