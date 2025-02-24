@@ -140,9 +140,6 @@ def make_call():
     message_history.append({"role": "assistant", "content": initial_message})
     redis_client.set(unique_id, json.dumps(message_history))
 
-    # Map call_sid to unique_id for later reference
-    call_sessions['unique_id'] = unique_id
-
     # Create TwiML response
     response = VoiceResponse()
     
@@ -165,7 +162,10 @@ def make_call():
     )
 
     # Track call session
-    call_sessions[call.sid] = {"status": "initiated"}
+    call_sessions[call.sid] = {
+        "unique_id": unique_id,
+        "status": "initiated"
+    }
     
     return jsonify({"status": "calling", "call_sid": call.sid})
 
@@ -179,13 +179,17 @@ def twilio_events():
     call_sid = request.form.get("CallSid")
     call_status = request.form.get("CallStatus")
 
-    if call_sid:
-        call_sessions[call_sid] = {"status": call_status}
+    # if call_sid:
+    #     call_sessions[call_sid] = {"status": call_status}
+
+    if call_sid in call_sessions:
+        call_sessions[call_sid]["status"] = call_status  # Update status
 
     print(f"Call {call_sid} status: {call_status}")
 
     # Handle cleanup on call completion
     if call_status in ["completed", "failed", "busy", "no-answer"]:
+        #need to pop this correctly
         stream_processors.pop(call_sid, None)
         call_sessions.pop(call_sid, None)
 
@@ -227,12 +231,15 @@ def handle_media(ws):
                 if event == 'start':
                     stream_sid = data['start']['streamSid']
                     call_sid = data['start']['callSid']
-                    # Retrieve the existing unique_id from call_sessions
-                    unique_id = call_sessions.get(call_sid, {}).get("unique_id")
-                    
-                    if not unique_id:
-                        print(f"Warning: No unique_id found for CallSid {call_sid}")
+                    print(data)
+                   
+                    call_data = call_sessions.get(call_sid)  # Fetch call session
+                    if not call_data:
+                        print(f"Warning: No session found for CallSid {call_sid}")
                         return
+                    
+                    unique_id = call_data.get("unique_id")
+                    print(f"Using existing unique_id: {unique_id}")
 
                     stream_processors[stream_sid] = StreamProcessor(stream_sid)
                     stream_to_unique_id[stream_sid] = unique_id
