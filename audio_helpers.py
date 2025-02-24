@@ -75,7 +75,7 @@ def resample_audio(pcm_audio, orig_sr=8000, target_sr=16000):
         return None
 
     
-def save_as_wav(audio_bytes, sample_rate=16000):
+def save_as_wav_inmem(audio_bytes, sample_rate=16000):
     """Save PCM audio bytes as an in-memory WAV file."""
     wav_io = io.BytesIO()
     with wave.open(wav_io, 'wb') as wf:
