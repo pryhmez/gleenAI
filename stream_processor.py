@@ -34,7 +34,7 @@ class StreamProcessor:
         self.speech_detected = False
         self.recording_session_active = False
         self.end_speech_time = None
-        self.pause_duration = 2 
+        self.pause_duration = 1.5
         self.transcription = None 
 
         # Ensure the audio directory exists
@@ -135,6 +135,7 @@ class StreamProcessor:
 
         if self.recording_session_active and self.end_speech_time and (time.time() - self.end_speech_time) > self.pause_duration:
             print("Pause duration elapsed, transcribing audio")
+            self.save_compiled_audio()
             self.transcription = self.transcribe_audio()
             if self.transcription:
                 print(f"Transcription: {self.transcription}")
@@ -143,6 +144,35 @@ class StreamProcessor:
             self.speech_detected = False
             self.recording_session_active = False  # End recording session
             self.vad_iterator.reset_states()
+
+    def save_compiled_audio(self):
+        """
+        Save the compiled speech buffer to a file for inspection.
+        """
+        print("================================================================================================================================Saving compiled audio...")
+
+        if self.speech_buffer:
+            print("Compiling all audio buffer...")
+
+            compiled_audio = b"".join(self.speech_buffer)
+
+            # Define the filename with timestamp
+            timestamp = time.strftime("%Y%m%d-%H%M%S")
+            filename = os.path.join(self.audio_directory, f"compiled_audio_{timestamp}.wav")
+            total_samples = len(compiled_audio) // self.num_bytes_per_sample
+            expected_duration = total_samples / self.sample_rate
+            print(f"Compiled audio data length: {len(compiled_audio)} bytes")
+            print(f"Total samples: {total_samples}")
+            print(f"Expected duration: {expected_duration:.2f} seconds")
+
+            with wave.open(filename, 'wb') as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(self.num_bytes_per_sample)
+                wf.setframerate(self.sample_rate)
+                wf.writeframes(compiled_audio)
+            print(f"================================================================================================================================Saved compiled audio to {filename}")
+        else:
+            print("================================================================================================================================No audio buffer to save.")
 
     def transcribe_audio(self):
         """
