@@ -284,7 +284,7 @@ def handle_media(ws):
                     processor.add_audio(audio_data)
 
                     # Check if transcription is available
-                    transcription = processor.transcribe_audio()
+                    transcription = processor.get_transcription()
                     if transcription:
                         # Retrieve unique_id for message history
                         unique_id = stream_to_unique_id.get(stream_sid)

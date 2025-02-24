@@ -35,6 +35,7 @@ class StreamProcessor:
         self.recording_session_active = False
         self.end_speech_time = None
         self.pause_duration = 2 
+        self.transcription = None 
 
         # Ensure the audio directory exists
         os.makedirs(self.audio_directory, exist_ok=True)
@@ -50,6 +51,11 @@ class StreamProcessor:
         self.vad_iterator = self.VADIterator(self.model, sampling_rate=sample_rate)
         self.window_size_samples = 256
         self.num_bytes_per_sample = 2   # int16 has 2 bytes per sample
+
+    def get_transcription(self):
+        transcription = self.transcription
+        self.transcription = None
+        return transcription
 
     def add_audio(self, audio_data):
         """
@@ -129,15 +135,55 @@ class StreamProcessor:
 
         if self.recording_session_active and self.end_speech_time and (time.time() - self.end_speech_time) > self.pause_duration:
             print("Pause duration elapsed, transcribing audio")
-            # transcription = self.transcribe_audio()
-            # if transcription:
-            #     print(f"Transcription: {transcription}")
+            self.transcription = self.transcribe_audio()
+            if self.transcription:
+                print(f"Transcription: {self.transcription}")
             self.speech_buffer = []
             self.end_speech_time = None
             self.speech_detected = False
             self.recording_session_active = False  # End recording session
             self.vad_iterator.reset_states()
 
+    def transcribe_audio(self):
+        """
+        Transcribe buffered speech after detecting silence.
+        """
+        print('=================================================================================================starting transcription')
+        if not self.speech_buffer:
+            return None
+
+        audio_chunk = b"".join(self.speech_buffer)
+        self.speech_buffer = []  # Clear after using
+
+        # Save audio_chunk to WAV format for transcription
+        # Ensure the audio is at 16kHz for Whisper
+        # We need to resample it from 8kHz to 16kHz
+        try:
+            # Convert bytes to numpy array
+            audio_array = np.frombuffer(audio_chunk, dtype=np.int16)
+            # Resample to 16000 Hz
+            
+            resampled_audio = librosa.resample(audio_array.astype(np.float32), orig_sr=8000, target_sr=16000)
+            resampled_audio = (resampled_audio * 32768.0).astype(np.int16)
+            # Convert back to bytes
+            resampled_audio_bytes = resampled_audio.tobytes()
+            # Save to BytesIO buffer as WAV
+            wav_io = io.BytesIO()
+            with wave.open(wav_io, 'wb') as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)  # 2 bytes for int16
+                wf.setframerate(16000)
+                wf.writeframes(resampled_audio_bytes)
+            wav_io.seek(0)
+
+            # Transcribe using Whisper
+            segments, _ = whisper_model.transcribe(wav_io)
+            transcription = " ".join([segment.text for segment in segments])
+            if transcription.strip():
+                return transcription
+        except Exception as e:
+            print(f"Error during transcription: {e}")
+        return None
 
 
 
