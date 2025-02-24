@@ -22,7 +22,7 @@ whisper_model = WhisperModel("base", device="cuda", compute_type="float16")
 class StreamProcessor:
     def __init__(self, stream_sid, silence_duration=2, sample_rate=8000, save_interval=10):
         self.stream_sid = stream_sid
-        self.audio_buffer = bytes()
+        self.audio_buffer = bytearray()
         self.silence_duration = silence_duration
         self.sample_rate = sample_rate
         self.speech_buffer = []
@@ -63,7 +63,8 @@ class StreamProcessor:
             print(f"Error converting μ-law to PCM: {e}")
             return
 
-        self.audio_buffer += pcm_audio_data
+        # self.audio_buffer += pcm_audio_data
+        self.audio_buffer.extend(pcm_audio_data)
         # self.all_audio_buffer.append(pcm_audio_data)  # Store all audio data
         self.process_vad()
 
