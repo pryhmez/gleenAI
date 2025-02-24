@@ -203,7 +203,8 @@ def connect_media_stream():
 
     response = VoiceResponse()
     start = Start()
-    start.stream(unique_id=unique_id, url=f"{Config.APP_SOCKET_URL}")
+    stream = start.stream(url=f"{Config.APP_SOCKET_URL}")
+    stream.parameter(unique_id=unique_id)
     response.append(start)
     response.say("You can start speaking now.")
     response.pause(length=60)
