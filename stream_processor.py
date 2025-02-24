@@ -32,6 +32,7 @@ class StreamProcessor:
         self.save_interval = save_interval  # Save interval in seconds
         self.audio_directory = 'audio'  # Directory to save audio files
         self.speech_detected = False
+        self.end_speech_time = None
         self.pause_duration = 2 
 
         # Ensure the audio directory exists
