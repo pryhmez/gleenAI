@@ -120,11 +120,11 @@ class StreamProcessor:
                         self.end_speech_time = time.time()
                         self.speech_buffer.append(chunk_bytes)
                     elif self.recording_session_active:
-                        print('still in active session waiting for timeout1')
+                        # print('still in active session waiting for timeout1')
                         self.speech_buffer.append(chunk_bytes)
                 else:
                     if self.recording_session_active:
-                        print('still in active session waiting for timout2')
+                        # print('still in active session waiting for timout2')
                         self.speech_buffer.append(chunk_bytes)
 
             except ValueError as e:
