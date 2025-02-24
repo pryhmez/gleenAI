@@ -129,9 +129,9 @@ class StreamProcessor:
 
         if self.recording_session_active and self.end_speech_time and (time.time() - self.end_speech_time) > self.pause_duration:
             print("Pause duration elapsed, transcribing audio")
-            transcription = self.transcribe_audio()
-            if transcription:
-                print(f"Transcription: {transcription}")
+            # transcription = self.transcribe_audio()
+            # if transcription:
+            #     print(f"Transcription: {transcription}")
             self.speech_buffer = []
             self.end_speech_time = None
             self.speech_detected = False
