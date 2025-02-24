@@ -191,7 +191,7 @@ class StreamProcessor:
         try:
             # Convert bytes to numpy array
             # audio_array = np.frombuffer(audio_chunk, dtype=np.int16)
-            audio_array = np.frombuffer(pcm_audio, dtype=np.int16).astype(np.float32) / 32768.0
+            audio_array = np.frombuffer(audio_chunk, dtype=np.int16).astype(np.float32) / 32768.0
 
             # Resample to 16000 Hz
             resampled_audio = librosa.resample(audio_array.astype(np.float32), orig_sr=8000, target_sr=16000)
