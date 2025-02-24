@@ -141,7 +141,6 @@ def make_call():
     redis_client.set(unique_id, json.dumps(message_history))
 
     # Map call_sid to unique_id for later reference
-    call_sessions = {}
     call_sessions['unique_id'] = unique_id
 
     # Create TwiML response
