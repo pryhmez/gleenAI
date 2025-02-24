@@ -5,7 +5,7 @@ from flask import Flask, request, jsonify, url_for, session, after_this_request,
 from flask_sock import Sock
 from flask_session import Session
 from twilio.rest import Client
-from twilio.twiml.voice_response import VoiceResponse, Start, Connect
+from twilio.twiml.voice_response import VoiceResponse, Start, Connect, Stream
 from faster_whisper import WhisperModel
 from werkzeug.utils import secure_filename
 from langchain_core.prompts import PromptTemplate
@@ -203,8 +203,9 @@ def connect_media_stream():
 
     response = VoiceResponse()
     start = Start()
-    stream = start.stream(url=f"{Config.APP_SOCKET_URL}")
+    stream = Stream(url=f"{Config.APP_SOCKET_URL}")
     stream.parameter(unique_id=unique_id)
+    start.append(stream)
     response.append(start)
     response.say("You can start speaking now.")
     response.pause(length=60)
@@ -227,11 +228,14 @@ def handle_media(ws):
                 if event == 'start':
                     stream_sid = data['start']['streamSid']
                     call_sid = data['start']['callSid']
-                    unique = call_sid = data
-                    print(unique)
+                    # Retrieve the existing unique_id from call_sessions
+                    unique_id = call_sessions.get(call_sid, {}).get("unique_id")
+                    
+                    if not unique_id:
+                        print(f"Warning: No unique_id found for CallSid {call_sid}")
+                        return
+
                     stream_processors[stream_sid] = StreamProcessor(stream_sid)
-                    unique_id = str(uuid.uuid4())
-                    print(stream_sid)
                     stream_to_unique_id[stream_sid] = unique_id
                     print(f"Started streaming for call {stream_sid}")
 
