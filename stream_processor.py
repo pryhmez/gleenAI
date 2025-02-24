@@ -15,7 +15,7 @@ from faster_whisper import WhisperModel
 from audio_helpers import text_to_speech, save_audio_file, convert_audio_to_wav
 
 # Initialize Faster Whisper
-whisper_model = WhisperModel("base", device="cuda", compute_type="float16")
+whisper_model = WhisperModel("Large-v2", device="cuda", compute_type="float16")
 
  
 
@@ -120,11 +120,11 @@ class StreamProcessor:
                         self.end_speech_time = time.time()
                         self.speech_buffer.append(chunk_bytes)
                     elif self.recording_session_active:
-                        print('still in active session waiting for timout')
+                        print('still in active session waiting for timeout1')
                         self.speech_buffer.append(chunk_bytes)
                 else:
                     if self.recording_session_active:
-                        print('still in active session waiting for timout')
+                        print('still in active session waiting for timout2')
                         self.speech_buffer.append(chunk_bytes)
 
             except ValueError as e:
