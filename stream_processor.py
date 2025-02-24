@@ -46,8 +46,8 @@ class StreamProcessor:
         (self.get_speech_timestamps, self.save_audio, self.read_audio,
          self.VADIterator, self.collect_chunks) = utils
 
-        self.vad_iterator = self.VADIterator(self.model)
-        self.window_size_samples = 260
+        self.vad_iterator = self.VADIterator(self.model, sample_rate=sample_rate)
+        self.window_size_samples = 256
         self.num_bytes_per_sample = 2   # int16 has 2 bytes per sample
 
     def add_audio(self, audio_data):
