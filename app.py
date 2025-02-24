@@ -227,7 +227,7 @@ def handle_media(ws):
                 if event == 'start':
                     stream_sid = data['start']['streamSid']
                     call_sid = data['start']['callSid']
-                    unique = call_sid = data['start']['unique_id']
+                    unique = call_sid = data
                     print(unique)
                     stream_processors[stream_sid] = StreamProcessor(stream_sid)
                     unique_id = str(uuid.uuid4())
