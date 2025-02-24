@@ -32,6 +32,7 @@ class StreamProcessor:
         self.save_interval = save_interval  # Save interval in seconds
         self.audio_directory = 'audio'  # Directory to save audio files
         self.speech_detected = False
+        self.recording_session_active = False
         self.end_speech_time = None
         self.pause_duration = 2 
 
@@ -100,17 +101,23 @@ class StreamProcessor:
                 speech_dict = self.vad_iterator(audio_tensor)
                 print(f"VAD output: {speech_dict}")
 
-                if 'start' in speech_dict:
-                    print("Detected start of speech")
-                    self.speech_detected = True
-                    self.speech_buffer.append(chunk_bytes)
-                elif 'end' in speech_dict:
-                    print("Detected end of speech")
-                    self.speech_detected = False
-                    self.end_speech_time = time.time()
-                    self.speech_buffer.append(chunk_bytes)
-                elif self.speech_detected:
-                    self.speech_buffer.append(chunk_bytes)
+                if speech_dict is not None:
+                    if 'start' in speech_dict:
+                        print("Detected start of speech")
+                        self.speech_detected = True
+                        self.recording_session_active = True
+                        self.end_speech_time = None
+                        self.speech_buffer.append(chunk_bytes)
+                    elif 'end' in speech_dict:
+                        print("Detected end of speech so waiting for pause grace")
+                        self.speech_detected = False
+                        self.end_speech_time = time.time()
+                        self.speech_buffer.append(chunk_bytes)
+                    elif self.recording_session_active:
+                        self.speech_buffer.append(chunk_bytes)
+                else:
+                    if self.recording_session_active:
+                        self.speech_buffer.append(chunk_bytes)
 
             except ValueError as e:
                 print(f"VAD processing error: {e}")
@@ -118,14 +125,15 @@ class StreamProcessor:
                 self.audio_buffer = bytearray(chunk_bytes) + self.audio_buffer
                 break    # Exit the loop to accumulate more data
 
-        # Check if speech ended and delay has passed
-        if self.end_speech_time and (time.time() - self.end_speech_time) > self.pause_duration:
+        if self.recording_session_active and self.end_speech_time and (time.time() - self.end_speech_time) > self.pause_duration:
             print("Pause duration elapsed, transcribing audio")
             transcription = self.transcribe_audio()
             if transcription:
                 print(f"Transcription: {transcription}")
             self.speech_buffer = []
             self.end_speech_time = None
+            self.speech_detected = False
+            self.recording_session_active = False  # End recording session
             self.vad_iterator.reset_states()
 
     def transcribe_audio(self):
