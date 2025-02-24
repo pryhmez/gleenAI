@@ -15,7 +15,7 @@ from faster_whisper import WhisperModel
 from audio_helpers import text_to_speech, save_audio_file, convert_audio_to_wav
 
 # Initialize Faster Whisper
-whisper_model = WhisperModel("Large-v2", device="cuda", compute_type="float16")
+whisper_model = WhisperModel("distil-large-v2", device="cuda", compute_type="float16")
 
  
 
