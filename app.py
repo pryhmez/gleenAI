@@ -257,7 +257,7 @@ def handle_media(ws):
                     if transcription:
                         # Retrieve unique_id for message history
                         unique_id = stream_to_unique_id.get(stream_sid)
- 
+                        print(unique_id)
                         # Process AI response and generate audio
                         message_history_json = redis_client.get(unique_id)
                         message_history = json.loads(message_history_json) if message_history_json else []
