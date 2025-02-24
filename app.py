@@ -203,7 +203,7 @@ def connect_media_stream():
 
     response = VoiceResponse()
     start = Start()
-    start.stream(url=f"{Config.APP_SOCKET_URL}")
+    start.stream(unique_id=unique_id, url=f"{Config.APP_SOCKET_URL}")
     response.append(start)
     response.say("You can start speaking now.")
     response.pause(length=60)
@@ -226,9 +226,11 @@ def handle_media(ws):
                 if event == 'start':
                     stream_sid = data['start']['streamSid']
                     call_sid = data['start']['callSid']
-                    stream_processors[stream_sid] = StreamProcessor(stream_sid)
-                    unique_id = call_sessions.get('unique_id')
+                    unique = call_sid = data['start']['unique_id']
                     print(unique_id)
+                    stream_processors[stream_sid] = StreamProcessor(stream_sid)
+                    unique_id = str(uuid.uuid4())
+                    print(stream_sid)
                     stream_to_unique_id[stream_sid] = unique_id
                     print(f"Started streaming for call {stream_sid}")
 
