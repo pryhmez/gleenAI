@@ -191,8 +191,9 @@ class StreamProcessor:
         try:
             # Convert bytes to numpy array
             audio_array = np.frombuffer(audio_chunk, dtype=np.int16)
+            # audio_array = np.frombuffer(pcm_audio, dtype=np.int16).astype(np.float32) / 32768.0
+
             # Resample to 16000 Hz
-            
             resampled_audio = librosa.resample(audio_array.astype(np.float32), orig_sr=8000, target_sr=16000)
             resampled_audio = (resampled_audio * 32768.0).astype(np.int16)
             # Convert back to bytes
@@ -209,6 +210,7 @@ class StreamProcessor:
             # Transcribe using Whisper
             segments, _ = whisper_model.transcribe(wav_io)
             transcription = " ".join([segment.text for segment in segments])
+            print(transcription)
             if transcription.strip():
                 return transcription
         except Exception as e:
