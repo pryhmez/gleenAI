@@ -144,7 +144,7 @@ def make_call():
     response = VoiceResponse()
     
     # Then play the greeting
-    # response.play(url_for('serve_audio', filename=secure_filename(audio_filename), _external=True))
+    response.play(url_for('serve_audio', filename=secure_filename(audio_filename), _external=True))
 
     # Redirect to start the media stream after playing
     # redirect_url = f"{Config.APP_PUBLIC_GATHER_URL}?CallSid={unique_id}"
@@ -291,8 +291,20 @@ def handle_media(ws):
 
                         print(response_text)
 
-                        # Send audio response back to the user if needed
-                        # Implementation depends on your requirements
+                        # Send audio response back to the user if needed                        
+                        with open(audio_file_path, 'rb') as audio_file:
+                            audio_bytes = audio_file.read()
+                            audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
+
+                        # Stream audio response back through WebSocket
+                        ws.send(json.dumps({
+                            'event': 'media',
+                            'streamSid': stream_sid,
+                            'media': {
+                                'payload': audio_base64
+                            }
+                        }))
+                        
 
                 else:
                     # Handle other events if necessary
