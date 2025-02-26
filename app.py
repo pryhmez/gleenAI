@@ -228,6 +228,8 @@ def twilio_events():
 def connect_media_stream():
     unique_id = request.args.get('unique_id')
 
+    logger.error(f"connecting to socket")
+
     response = VoiceResponse()
     start = Start()
     stream = Stream(url=f"{Config.APP_SOCKET_URL}")
@@ -298,9 +300,9 @@ def handle_media(ws):
                         # Process AI response and generate audio
                         message_history_json = redis_client.get(unique_id)
                         message_history = json.loads(message_history_json) if message_history_json else []
-                        print(message_history)
+                        # print(message_history)
                         ai_response_text = process_message(message_history, transcription)
-                        print(f"ai_response_text: {ai_response_text}")
+                        # print(f"ai_response_text: {ai_response_text}")
                         response_text = clean_response(ai_response_text)
 
                         logger.debug(f"AI Response: {response_text}")
