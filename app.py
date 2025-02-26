@@ -1,5 +1,6 @@
 import io
 import ffmpeg 
+import torch
 from flask import Flask, request, jsonify, url_for, session, after_this_request, send_from_directory, abort
 # from flask_socketio import SocketIO
 from flask_sock import Sock
@@ -280,6 +281,9 @@ def handle_media(ws):
                         response_text = clean_response(ai_response_text)
 
                         logger.debug(f"AI Response: {response_text}")
+
+                        torch.cuda.empty_cache()
+
 
                         audio_file_path = text_to_speech_yarngpt(response_text)
                         audio_filename = os.path.basename(audio_file_path)
