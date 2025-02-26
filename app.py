@@ -241,7 +241,7 @@ def connect_media_stream():
 
 
 @sock.route('/media-stream')
-async def handle_media(ws):
+def handle_media(ws):
     print("Client connected")
 
     stream_to_unique_id = {}
@@ -326,7 +326,15 @@ async def handle_media(ws):
 
                         print(response_text)
 
-                        # Send audio response back to the user if needed                        
+                        # Send audio response back to the user if needed 
+                        response = VoiceResponse()
+                        response.play(url_for('serve_audio',  filename=secure_filename(audio_filename), _external=True))    
+                        start = Start()
+                        start.stream(url=f"{Config.APP_SOCKET_URL}")
+                        response.append(start)
+
+                        # Update Twilio call
+                        client.calls(stream_sid).update(twiml=str(response))                   
 
                         
 
@@ -365,7 +373,7 @@ def serve_audio(filename):
         logger.error(f"Audio file not found: {filename}")
         abort(404)
 
-async def send_audio_to_twilio(ws, pcm_audio, chunk_size=320):
+def send_audio_to_twilio(ws, pcm_audio, chunk_size=320):
     """Sends PCM audio data in 20ms chunks to Twilio via WebSocket"""
     total_size = len(pcm_audio)
     num_chunks = total_size // chunk_size
@@ -378,7 +386,7 @@ async def send_audio_to_twilio(ws, pcm_audio, chunk_size=320):
                 "payload": base64.b64encode(chunk).decode("utf-8")
             }
         }))
-        await asyncio.sleep(0.02)  # Non-blocking delay
+        asyncio.sleep(0.02)  # Non-blocking delay
 
 
 
