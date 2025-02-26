@@ -41,7 +41,7 @@ def text_to_speech(text, voice='af_heart', speed=1, TTS=1):
         # return audio_data  # Return as NumPy array
     
           # Collect all audio chunks using bytearray
-        audio_chunks = bytearray()
+        audio_chunks = []
         for i, (gs, ps, audio) in enumerate(generator):
             print(f"Chunk {i}: {gs}")  # Log each chunk
             audio_chunks.append(audio)
