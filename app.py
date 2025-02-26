@@ -228,7 +228,7 @@ def twilio_events():
 def connect_media_stream():
     unique_id = request.args.get('unique_id')
 
-    logger.error(f"connecting to socket")
+    logger.debug(f"connecting to socket{Config.APP_SOCKET_URL}")
 
     response = VoiceResponse()
     start = Start()
@@ -236,7 +236,7 @@ def connect_media_stream():
     stream.parameter(unique_id=unique_id)
     start.append(stream)
     response.append(start)
-    response.pause(length=60)
+    response.pause(length=120)
     return str(response)
 
 
