@@ -9,32 +9,49 @@ from config import Config
 import wave
 import librosa
 import numpy as np
+from kokoro import KPipeline
+import soundfile as sf
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def text_to_speech(text):
-    print(Config.ELEVENLABS_API_KEY)
-    print(Config.VOICE_ID)
-    url = f"https://api.elevenlabs.io/v1/text-to-speech/{Config.VOICE_ID}"
-    headers = {
-        'Content-Type': 'application/json',
-        'xi-api-key': Config.ELEVENLABS_API_KEY
-    }
-    data = {
-        "model_id": "eleven_monolingual_v1",
-        "text": text,
-        "voice_settings": {
-            "similarity_boost": 0.8,
-            "stability": 0.5,
-            "use_speaker_boost": True
+# Initialize the Kokoro pipeline
+pipeline = KPipeline(lang_code='a')  # 'a' => American English, adjust as needed
+
+def text_to_speech(text, voice='af_heart', speed=1, TTS=1):
+    if TTS == 1:
+        """Generate speech from text using Kokoro TTS."""
+        generator = pipeline(text, voice=voice, speed=speed, split_pattern=r'\n+')
+
+        # Generate speech audio and save the file
+        audio_data = []
+        for _, _, audio in generator:
+            audio_data.extend(audio)
+
+        return audio_data
+    elif TTS == 2:
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{Config.VOICE_ID}"
+        headers = {
+            'Content-Type': 'application/json',
+            'xi-api-key': Config.ELEVENLABS_API_KEY
         }
-    }
-    response = requests.post(url, headers=headers, json=data)
-    if response.status_code == 200:
-        return response.content
-    else:
-        raise Exception(f"Failed to generate speech: {response.text}")
+        data = {
+            "model_id": "eleven_monolingual_v1",
+            "text": text,
+            "voice_settings": {
+                "similarity_boost": 0.8,
+                "stability": 0.5,
+                "use_speaker_boost": True
+            }
+        }
+        response = requests.post(url, headers=headers, json=data)
+        if response.status_code == 200:
+            return response.content
+        else:
+            raise Exception(f"Failed to generate speech: {response.text}")
+
+
+
 
 def save_audio_file(audio_data):
     with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3', dir='audio_files') as tmpfile:

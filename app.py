@@ -327,7 +327,7 @@ def handle_media(ws):
                         response.append(start)
 
                         # Update Twilio call
-                        client.calls(call_sid).update(twiml=str(response))                   
+                        client.calls(call_sid).update(twiml=str(response))             
 
                         message_history.append({"role": "user", "content": transcription})
                         message_history.append({"role": "assistant", "content": response_text})
