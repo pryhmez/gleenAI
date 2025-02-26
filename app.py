@@ -334,7 +334,7 @@ def handle_media(ws):
                         response.append(start)
 
                         # Update Twilio call
-                        client.calls(stream_sid).update(twiml=str(response))                   
+                        client.calls(call_sid).update(twiml=str(response))                   
 
                         
 
