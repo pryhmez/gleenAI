@@ -63,6 +63,28 @@ def convert_audio_to_wav(audio_chunk):
         logger.error(f"FFmpeg audio conversion error: {e}")
         return None
     
+def convert_audio_to_pcm(audio_data):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_mp3:
+        tmp_mp3.write(audio_data)
+        tmp_mp3.flush()
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pcm") as tmp_pcm:
+            (
+                ffmpeg
+                .input(tmp_mp3.name)
+                .output(tmp_pcm.name, format="s16le", acodec="pcm_s16le", ac=1, ar="8000")
+                .run(quiet=True, overwrite_output=True)
+            )
+            
+            with open(tmp_pcm.name, "rb") as f:
+                pcm_audio = f.read()
+
+        os.unlink(tmp_mp3.name)
+        os.unlink(tmp_pcm.name)
+
+        return pcm_audio
+
+    
 def resample_audio(pcm_audio, orig_sr=8000, target_sr=16000):
     """Resample PCM audio from 8000Hz to 16000Hz."""
     try:

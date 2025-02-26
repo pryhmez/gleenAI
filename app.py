@@ -13,7 +13,7 @@ from langchain_core.prompts import PromptTemplate
 
 from config import Config
 from ai_helpers import process_initial_message, process_message, initiate_inbound_message
-from audio_helpers import text_to_speech, save_audio_file, convert_audio_to_wav
+from audio_helpers import text_to_speech, save_audio_file, convert_audio_to_wav, convert_audio_to_pcm
 from yarngpt_helper import text_to_speech_yarngpt
 from stream_processor import StreamProcessor
 
@@ -28,7 +28,7 @@ import threading
 import json
 import websockets
 import numpy as np
-
+import asyncio
 
 
 redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=False)
@@ -103,6 +103,9 @@ def ping():
 def voice():
     """Handles an incoming Twilio call and sets up streaming."""
     response = VoiceResponse()
+
+    print("Initializing for inbound call...")
+    unique_id = str(uuid.uuid4())
     
     # Start streaming to WebSocket
     start = Start()
@@ -113,6 +116,24 @@ def voice():
     response.say("Hello, I'm your AI assistant. How can I help you?")
 
     return str(response)
+
+    # # Track call session
+    # call_sessions[call.sid] = {
+    #     "unique_id": unique_id,
+    #     "status": "initiated"
+    # }
+
+    # session['conversation_stage_id'] = 1
+    # message_history = []
+    # agent_response= initiate_inbound_message()
+    # audio_data = text_to_speech(agent_response)
+    # audio_file_path = save_audio_file(audio_data)
+    # audio_filename = os.path.basename(audio_file_path)
+    # resp.play(url_for('serve_audio', filename=secure_filename(audio_filename), _external=True))
+    # message_history.append({"role": "assistant", "content": agent_response})
+    # redis_client.set(unique_id, json.dumps(message_history))
+    # resp.redirect(url_for('gather_input', CallSid=unique_id))
+    # return str(resp)
 
 # ========================
 #  OUTGOING CALL HANDLER
@@ -132,7 +153,9 @@ def make_call():
     # Process initial message and create audio
     ai_message = process_initial_message(customer_name, customer_businessdetails)
     initial_message = clean_response(ai_message)
-    audio_file_path = text_to_speech_yarngpt(initial_message)
+    # audio_file_path = text_to_speech_yarngpt(initial_message)
+    audio_data = text_to_speech(initial_message)
+    audio_file_path = save_audio_file(audio_data)
     audio_filename = os.path.basename(audio_file_path)
 
     # Store message history in Redis
@@ -285,8 +308,15 @@ def handle_media(ws):
                         torch.cuda.empty_cache()
 
 
-                        audio_file_path = text_to_speech_yarngpt(response_text)
+                         # Generate speech from AI response
+                        audio_data = text_to_speech(response_text)
+                        audio_file_path = save_audio_file(audio_data)
                         audio_filename = os.path.basename(audio_file_path)
+
+                        pcm_audio = convert_audio_to_pcm(audio_data)
+
+                        # Send back to the user via WebSocket
+                        send_audio_to_twilio(ws, pcm_audio)
 
                         message_history.append({"role": "user", "content": transcription})
                         message_history.append({"role": "assistant", "content": response_text})
@@ -295,18 +325,7 @@ def handle_media(ws):
                         print(response_text)
 
                         # Send audio response back to the user if needed                        
-                        with open(audio_file_path, 'rb') as audio_file:
-                            audio_bytes = audio_file.read()
-                            audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
 
-                        # Stream audio response back through WebSocket
-                        ws.send(json.dumps({
-                            'event': 'media',
-                            'streamSid': stream_sid,
-                            'media': {
-                                'payload': audio_base64
-                            }
-                        }))
                         
 
                 else:
@@ -343,6 +362,23 @@ def serve_audio(filename):
     except FileNotFoundError:
         logger.error(f"Audio file not found: {filename}")
         abort(404)
+
+
+def send_audio_to_twilio(ws, pcm_audio, chunk_size=320):
+    """Sends PCM audio data in chunks to Twilio via WebSocket"""
+    total_size = len(pcm_audio)
+    num_chunks = total_size // chunk_size
+
+    for i in range(num_chunks):
+        chunk = pcm_audio[i * chunk_size:(i + 1) * chunk_size]
+        ws.send(json.dumps({
+            "event": "media",
+            "media": {
+                "payload": base64.b64encode(chunk).decode("utf-8")
+            }
+        }))
+        time.sleep(0.02)  # 20ms per chunk
+
 
 
 # ========================
