@@ -364,7 +364,7 @@ def serve_audio(filename):
     @after_this_request
     def remove_file(response):
         full_path = os.path.join(directory, filename)
-        delayed_delete(full_path)
+        # delayed_delete(full_path)
         return response
 
     try:
