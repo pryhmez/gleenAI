@@ -25,11 +25,26 @@ def text_to_speech(text, voice='af_heart', speed=1, TTS=1):
         """Generate speech from text using Kokoro TTS."""
         generator = pipeline(text, voice=voice, speed=speed, split_pattern=r'\n+')
     
+        #     # Collect all audio chunks
+        # audio_chunks = []
+        # for i, (gs, ps, audio) in enumerate(generator):
+        #     print(f"Chunk {i}: {gs}")  # Log each chunk
+        #     audio_chunks.append(audio)
+
+        # # Ensure we have audio data
+        # if not audio_chunks:
+        #     raise ValueError("No audio generated from text-to-speech.")
+
+        # # Merge all chunks into a single array
+        # audio_data = np.concatenate(audio_chunks, axis=0)
+
+        # return audio_data  # Return as NumPy array
+    
           # Collect all audio chunks using bytearray
         audio_chunks = bytearray()
         for i, (gs, ps, audio) in enumerate(generator):
             print(f"Chunk {i}: {gs}")  # Log each chunk
-            audio_chunks.extend(audio.tobytes())
+            audio_chunks.append(audio)
 
         # Ensure we have audio data
         if not audio_chunks:
