@@ -315,17 +315,10 @@ def handle_media(ws):
                         audio_file_path = save_audio_file(audio_data)
                         audio_filename = os.path.basename(audio_file_path)
 
-                        pcm_audio = convert_audio_to_pcm(audio_data)
+                        # pcm_audio = convert_audio_to_pcm(audio_data)
 
                         # Send back to the user via WebSocket
-                        send_audio_to_twilio(ws, pcm_audio)
-
-                        message_history.append({"role": "user", "content": transcription})
-                        message_history.append({"role": "assistant", "content": response_text})
-                        redis_client.set(unique_id, json.dumps(message_history))
-
-                        print(response_text)
-
+                        # send_audio_to_twilio(ws, pcm_audio)
                         # Send audio response back to the user if needed 
                         response = VoiceResponse()
                         response.play(url_for('serve_audio',  filename=secure_filename(audio_filename), _external=True))    
@@ -335,6 +328,13 @@ def handle_media(ws):
 
                         # Update Twilio call
                         client.calls(call_sid).update(twiml=str(response))                   
+
+                        message_history.append({"role": "user", "content": transcription})
+                        message_history.append({"role": "assistant", "content": response_text})
+                        redis_client.set(unique_id, json.dumps(message_history))
+
+                        print(response_text)
+
 
                         
 
