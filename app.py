@@ -29,6 +29,10 @@ import json
 import websockets
 import numpy as np
 import asyncio
+import psutil
+
+print(f"Memory usage: {psutil.virtual_memory().percent}%")
+
 
 
 redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=False)
@@ -302,12 +306,12 @@ def handle_media(ws):
                         message_history = json.loads(message_history_json) if message_history_json else []
                         # print(message_history)
                         ai_response_text = process_message(message_history, transcription)
-                        # print(f"ai_response_text: {ai_response_text}")
                         response_text = clean_response(ai_response_text)
 
                         logger.debug(f"AI Response: {response_text}")
 
                         torch.cuda.empty_cache()
+                        print(f"Memory usage before audio created: {psutil.virtual_memory().percent}%")
 
 
                          # Generate speech from AI response
@@ -315,7 +319,8 @@ def handle_media(ws):
                         audio_file_path = save_audio_file(audio_data)
                         audio_filename = os.path.basename(audio_file_path)
 
-                        # pcm_audio = convert_audio_to_pcm(audio_data)
+                        print(f"Memory usage after audio created: {psutil.virtual_memory().percent}%")
+
 
                         # Send back to the user via WebSocket
                         # send_audio_to_twilio(ws, pcm_audio)
@@ -325,6 +330,8 @@ def handle_media(ws):
                         # start = Start()
                         # start.stream(url=f"{Config.APP_SOCKET_URL}")
                         # response.append(start)
+                        
+                        print(f"Memory usage playing audio: {psutil.virtual_memory().percent}%")
 
                         # Update Twilio call
                         client.calls(call_sid).update(twiml=str(response))             
@@ -347,7 +354,7 @@ def handle_media(ws):
             break
 
     ws.close()
-
+    print(f"Memory usage after client disconnect: {psutil.virtual_memory().percent}%")
 
 
 

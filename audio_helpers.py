@@ -24,60 +24,20 @@ def text_to_speech(text, voice='af_heart', speed=1, TTS=1):
     if TTS == 1:
         """Generate speech from text using Kokoro TTS."""
         generator = pipeline(text, voice=voice, speed=speed, split_pattern=r'\n+')
-
-        # Generate speech audio and convert to bytes
-        audio_data = []
-        for _, _, audio in generator:
-            audio_data.extend(audio)
-
-        # Convert to bytes for saving
-        audio_bytes = np.array(audio_data, dtype=np.float32).tobytes()
-        return audio_bytes
     
-    elif TTS == 2:
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{Config.VOICE_ID}"
-        headers = {
-            'Content-Type': 'application/json',
-            'xi-api-key': Config.ELEVENLABS_API_KEY
-        }
-        data = {
-            "model_id": "eleven_monolingual_v1",
-            "text": text,
-            "voice_settings": {
-                "similarity_boost": 0.8,
-                "stability": 0.5,
-                "use_speaker_boost": True
-            }
-        }
-        response = requests.post(url, headers=headers, json=data)
-        if response.status_code == 200:
-            return response.content
-        else:
-            raise Exception(f"Failed to generate speech: {response.text}")
-
-
-def save_audio_file(audio_data):
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3', dir='audio_files') as tmpfile:
-        tmpfile.write(audio_data)
-        return tmpfile.name
-
-def text_to_speech(text, voice='af_heart', speed=1, TTS=1):
-    if TTS == 1:
-        """Generate speech from text using Kokoro TTS."""
-        generator = pipeline(text, voice=voice, speed=speed, split_pattern=r'\n+')
-
-        # Collect all audio chunks
-        audio_chunks = []
+          # Collect all audio chunks using bytearray
+        audio_chunks = bytearray()
         for i, (gs, ps, audio) in enumerate(generator):
             print(f"Chunk {i}: {gs}")  # Log each chunk
-            audio_chunks.append(audio)
+            audio_chunks.extend(audio.tobytes())
 
         # Ensure we have audio data
         if not audio_chunks:
             raise ValueError("No audio generated from text-to-speech.")
 
-        # Merge all chunks into a single array
-        audio_data = np.concatenate(audio_chunks, axis=0)
+        # Convert bytearray to NumPy array
+        audio_data = np.frombuffer(audio_chunks, dtype=np.float32)
+        del audio_chunks  # Clear audio_chunks from memory
 
         return audio_data  # Return as NumPy array
 
@@ -97,12 +57,15 @@ def text_to_speech(text, voice='af_heart', speed=1, TTS=1):
                 "use_speaker_boost": True
             }
         }
-        response = requests.post(url, headers=headers, json=data)
-        
-        if response.status_code == 200:
-            return response.content  # Return raw bytes
-        else:
-            raise Exception(f"Failed to generate speech: {response.text}")
+        try:
+            response = requests.post(url, headers=headers, json=data)
+            response.raise_for_status()  # Raise an error if the request failed
+            audio_content = response.content
+            return audio_content
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Failed to generate speech: {str(e)}")
+        finally:
+            response.close() 
 
 def save_audio_file(audio_data):
     """Save audio as a playable file, handling both NumPy arrays (Kokoro) and raw bytes (ElevenLabs)."""
@@ -120,7 +83,6 @@ def save_audio_file(audio_data):
         return tmpfile.name  # Return file path
 
     
-# Convert raw audio bytes to WAV format
 def convert_audio_to_wav(audio_chunk):
     try:
         audio_input = io.BytesIO(audio_chunk)  # Wrap in BytesIO
@@ -136,32 +98,43 @@ def convert_audio_to_wav(audio_chunk):
         audio_output.write(process[0])
         audio_output.seek(0)  # Reset pointer to start
 
-        return audio_output  # Return WAV buffer
+        audio_input.close()  # Free up memory
+        del audio_input
+
+        return audio_output  
 
     except Exception as e:
         logger.error(f"FFmpeg audio conversion error: {e}")
         return None
     
 def convert_audio_to_pcm(audio_data):
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_mp3:
-        tmp_mp3.write(audio_data)
-        tmp_mp3.flush()
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_mp3:
+            tmp_mp3.write(audio_data)
+            tmp_mp3.flush()
+            tmp_mp3_path = tmp_mp3.name
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pcm") as tmp_pcm:
+            tmp_pcm_path = tmp_pcm.name
             (
                 ffmpeg
-                .input(tmp_mp3.name)
-                .output(tmp_pcm.name, format="s16le", acodec="pcm_s16le", ac=1, ar="8000")
+                .input(tmp_mp3_path)
+                .output(tmp_pcm_path, format="s16le", acodec="pcm_s16le", ac=1, ar="8000")
                 .run(quiet=True, overwrite_output=True)
             )
             
-            with open(tmp_pcm.name, "rb") as f:
+            with open(tmp_pcm_path, "rb") as f:
                 pcm_audio = f.read()
 
-        os.unlink(tmp_mp3.name)
-        os.unlink(tmp_pcm.name)
+        os.unlink(tmp_mp3_path)
+        os.unlink(tmp_pcm_path)
 
         return pcm_audio
+
+    except Exception as e:
+        logger.error(f"FFmpeg audio conversion error: {e}")
+        return None
+
 
     
 def resample_audio(pcm_audio, orig_sr=8000, target_sr=16000):
@@ -170,10 +143,13 @@ def resample_audio(pcm_audio, orig_sr=8000, target_sr=16000):
         audio_array = np.frombuffer(pcm_audio, dtype=np.int16).astype(np.float32) / 32768.0
         resampled_audio = librosa.resample(audio_array, orig_sr=orig_sr, target_sr=target_sr)
         resampled_audio = (resampled_audio * 32768.0).astype(np.int16)  # Convert back to int16
+        
+        del audio_array  # Clear audio_array from memory
         return resampled_audio.tobytes()
     except Exception as e:
-        print(f"Error resampling audio: {e}")
+        logger.error(f"Error resampling audio: {e}")
         return None
+
 
     
 def save_as_wav_inmem(audio_bytes, sample_rate=16000):
