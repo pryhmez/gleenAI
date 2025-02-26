@@ -60,6 +60,65 @@ def save_audio_file(audio_data):
     with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3', dir='audio_files') as tmpfile:
         tmpfile.write(audio_data)
         return tmpfile.name
+
+def text_to_speech(text, voice='af_heart', speed=1, TTS=1):
+    if TTS == 1:
+        """Generate speech from text using Kokoro TTS."""
+        generator = pipeline(text, voice=voice, speed=speed, split_pattern=r'\n+')
+
+        # Collect all audio chunks
+        audio_chunks = []
+        for i, (gs, ps, audio) in enumerate(generator):
+            print(f"Chunk {i}: {gs}")  # Log each chunk
+            audio_chunks.append(audio)
+
+        # Ensure we have audio data
+        if not audio_chunks:
+            raise ValueError("No audio generated from text-to-speech.")
+
+        # Merge all chunks into a single array
+        audio_data = np.concatenate(audio_chunks, axis=0)
+
+        return audio_data  # Return as NumPy array
+
+    elif TTS == 2:
+        """Generate speech from text using ElevenLabs API."""
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{Config.VOICE_ID}"
+        headers = {
+            'Content-Type': 'application/json',
+            'xi-api-key': Config.ELEVENLABS_API_KEY
+        }
+        data = {
+            "model_id": "eleven_monolingual_v1",
+            "text": text,
+            "voice_settings": {
+                "similarity_boost": 0.8,
+                "stability": 0.5,
+                "use_speaker_boost": True
+            }
+        }
+        response = requests.post(url, headers=headers, json=data)
+        
+        if response.status_code == 200:
+            return response.content  # Return raw bytes
+        else:
+            raise Exception(f"Failed to generate speech: {response.text}")
+
+def save_audio_file(audio_data):
+    """Save audio as a playable file, handling both NumPy arrays (Kokoro) and raw bytes (ElevenLabs)."""
+    os.makedirs("audio_files", exist_ok=True)  # Ensure directory exists
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.wav', dir='audio_files') as tmpfile:
+        if isinstance(audio_data, np.ndarray):
+            # If it's a NumPy array (Kokoro), save as WAV with PCM_16 format
+            sf.write(tmpfile.name, audio_data, samplerate=24000, subtype='PCM_16')
+        elif isinstance(audio_data, bytes):
+            tmpfile.write(audio_data)
+        else:
+            raise TypeError("Audio data must be either a NumPy array or raw bytes.")
+
+        return tmpfile.name  # Return file path
+
     
 # Convert raw audio bytes to WAV format
 def convert_audio_to_wav(audio_chunk):
