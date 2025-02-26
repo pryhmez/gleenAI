@@ -20,7 +20,7 @@ pipeline = KPipeline(lang_code='a')  # 'a' => American English, adjust as needed
 
 import numpy as np
 
-def text_to_speech(text, voice='af_heart', speed=1, TTS=1):
+def text_to_speech(text, voice='af_heart', speed=1, TTS=2):
     if TTS == 1:
         """Generate speech from text using Kokoro TTS."""
         generator = pipeline(text, voice=voice, speed=speed, split_pattern=r'\n+')
