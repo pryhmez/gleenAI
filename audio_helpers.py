@@ -18,17 +18,22 @@ logger = logging.getLogger(__name__)
 # Initialize the Kokoro pipeline
 pipeline = KPipeline(lang_code='a')  # 'a' => American English, adjust as needed
 
+import numpy as np
+
 def text_to_speech(text, voice='af_heart', speed=1, TTS=1):
     if TTS == 1:
         """Generate speech from text using Kokoro TTS."""
         generator = pipeline(text, voice=voice, speed=speed, split_pattern=r'\n+')
 
-        # Generate speech audio and save the file
+        # Generate speech audio and convert to bytes
         audio_data = []
         for _, _, audio in generator:
             audio_data.extend(audio)
 
-        return audio_data
+        # Convert to bytes for saving
+        audio_bytes = np.array(audio_data, dtype=np.float32).tobytes()
+        return audio_bytes
+    
     elif TTS == 2:
         url = f"https://api.elevenlabs.io/v1/text-to-speech/{Config.VOICE_ID}"
         headers = {
@@ -49,8 +54,6 @@ def text_to_speech(text, voice='af_heart', speed=1, TTS=1):
             return response.content
         else:
             raise Exception(f"Failed to generate speech: {response.text}")
-
-
 
 
 def save_audio_file(audio_data):
