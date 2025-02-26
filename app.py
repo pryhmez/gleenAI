@@ -322,9 +322,9 @@ def handle_media(ws):
                         # Send audio response back to the user if needed 
                         response = VoiceResponse()
                         response.play(url_for('serve_audio',  filename=secure_filename(audio_filename), _external=True))    
-                        start = Start()
-                        start.stream(url=f"{Config.APP_SOCKET_URL}")
-                        response.append(start)
+                        # start = Start()
+                        # start.stream(url=f"{Config.APP_SOCKET_URL}")
+                        # response.append(start)
 
                         # Update Twilio call
                         client.calls(call_sid).update(twiml=str(response))             
