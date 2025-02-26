@@ -51,7 +51,7 @@ def text_to_speech(text, voice='af_heart', speed=1, TTS=1):
             raise ValueError("No audio generated from text-to-speech.")
 
         # Convert bytearray to NumPy array
-        audio_data = np.frombuffer(audio_chunks, dtype=np.float32)
+        audio_data = np.concatenate(audio_chunks, axis=0)
         del audio_chunks  # Clear audio_chunks from memory
 
         return audio_data  # Return as NumPy array
