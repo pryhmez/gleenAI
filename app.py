@@ -210,7 +210,7 @@ def connect_media_stream():
     stream.parameter(unique_id=unique_id)
     start.append(stream)
     response.append(start)
-    # response.pause(length=60)
+    response.pause(length=60)
     return str(response)
 
 
