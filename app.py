@@ -73,7 +73,7 @@ client = Client(Config.TWILIO_ACCOUNT_SID, Config.TWILIO_AUTH_TOKEN)
 # Stores active stream processors and call sessions
 stream_processors = {}
 call_sessions = {}
-audio_play_start_time = None
+audio_play_start_time = time.time()
 audio_play_end_time = None
 
 # Directory to save the final combined audio file
