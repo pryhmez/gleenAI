@@ -260,7 +260,7 @@ def handle_media(ws):
                 if event == 'start':
                     stream_sid = data['start']['streamSid']
                     call_sid = data['start']['callSid']
-                    print(data)
+                    # print(data)
                    
                     call_data = call_sessions.get(call_sid)  # Fetch call session
                     if not call_data:
@@ -300,7 +300,7 @@ def handle_media(ws):
                     if transcription:
                         # Retrieve unique_id for message history
                         unique_id = stream_to_unique_id.get(stream_sid)
-                        print(unique_id)
+                        # print(unique_id)
                         # Process AI response and generate audio
                         message_history_json = redis_client.get(unique_id)
                         message_history = json.loads(message_history_json) if message_history_json else []
@@ -310,8 +310,8 @@ def handle_media(ws):
 
                         logger.debug(f"AI Response: {response_text}")
 
-                        torch.cuda.empty_cache()
-                        print(f"Memory usage before audio created: {psutil.virtual_memory().percent}%")
+                        # torch.cuda.empty_cache()
+                        # print(f"Memory usage before audio created: {psutil.virtual_memory().percent}%")
 
 
                          # Generate speech from AI response
@@ -319,19 +319,15 @@ def handle_media(ws):
                         audio_file_path = save_audio_file(audio_data)
                         audio_filename = os.path.basename(audio_file_path)
 
-                        print(f"Memory usage after audio created: {psutil.virtual_memory().percent}%")
+                        # print(f"Memory usage after audio created: {psutil.virtual_memory().percent}%")
 
-
-                        # Send back to the user via WebSocket
-                        # send_audio_to_twilio(ws, pcm_audio)
-                        # Send audio response back to the user if needed 
                         response = VoiceResponse()
                         response.play(url_for('serve_audio',  filename=secure_filename(audio_filename), _external=True))    
                         # start = Start()
                         # start.stream(url=f"{Config.APP_SOCKET_URL}")
                         # response.append(start)
                         
-                        print(f"Memory usage playing audio: {psutil.virtual_memory().percent}%")
+                        # print(f"Memory usage playing audio: {psutil.virtual_memory().percent}%")
 
                         # Update Twilio call
                         client.calls(call_sid).update(twiml=str(response))             
@@ -354,7 +350,7 @@ def handle_media(ws):
             break
 
     ws.close()
-    print(f"Memory usage after client disconnect: {psutil.virtual_memory().percent}%")
+    # print(f"Memory usage after client disconnect: {psutil.virtual_memory().percent}%")
 
 
 
