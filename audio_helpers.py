@@ -8,6 +8,8 @@ from werkzeug.utils import secure_filename
 from config import Config
 import wave
 import librosa
+import base64
+import json
 import numpy as np
 from kokoro import KPipeline
 import soundfile as sf
@@ -19,6 +21,32 @@ logger = logging.getLogger(__name__)
 pipeline = KPipeline(lang_code='a')  # 'a' => American English, adjust as needed
 
 import numpy as np
+
+async def stream_audio_to_twilio(websocket, stream_sid, text):
+    """Convert text to speech and stream it back to Twilio in real-time."""
+    generator = pipeline(text, voice='af_heart', speed=1, split_pattern=r'\n+')
+
+    for i, (gs, ps, audio_chunk) in enumerate(generator):
+        print(f"Streaming chunk {i}: {gs}")
+
+        # Convert NumPy audio chunk to μ-law format
+        audio_bytes = convert_to_mulaw(audio_chunk)
+
+        # Base64 encode
+        encoded_audio = base64.b64encode(audio_bytes).decode("utf-8")
+
+        # Create Twilio media message
+        media_message = {
+            "event": "media",
+            "streamSid": stream_sid,
+            "media": {
+                "payload": encoded_audio
+            }
+        }
+
+        # Send to Twilio WebSocket
+        await websocket.send(json.dumps(media_message))
+        print(f"Sent chunk {i} to Twilio")
 
 def text_to_speech(text, voice='af_heart', speed=1, TTS=1):
     if TTS == 1:
@@ -150,6 +178,11 @@ def convert_audio_to_pcm(audio_data):
         logger.error(f"FFmpeg audio conversion error: {e}")
         return None
 
+def convert_to_mulaw(audio_chunk, samplerate=8000):
+    """Convert NumPy audio chunk to μ-law format (8000 Hz)."""
+    with io.BytesIO() as buffer:
+        sf.write(buffer, audio_chunk, samplerate=samplerate, subtype="PCM_U8")
+        return buffer.getvalue()
 
     
 def resample_audio(pcm_audio, orig_sr=8000, target_sr=16000):

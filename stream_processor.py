@@ -145,40 +145,12 @@ class StreamProcessor:
             self.recording_session_active = False  # End recording session
             self.vad_iterator.reset_states()
 
-    def save_compiled_audio(self):
-        """
-        Save the compiled speech buffer to a file for inspection.
-        """
-        print("================================================================================================================================Saving compiled audio...")
-
-        if self.speech_buffer:
-            print("Compiling all audio buffer...")
-
-            compiled_audio = b"".join(self.speech_buffer)
-
-            # Define the filename with timestamp
-            timestamp = time.strftime("%Y%m%d-%H%M%S")
-            filename = os.path.join(self.audio_directory, f"compiled_audio_{timestamp}.wav")
-            total_samples = len(compiled_audio) // self.num_bytes_per_sample
-            expected_duration = total_samples / self.sample_rate
-            print(f"Compiled audio data length: {len(compiled_audio)} bytes")
-            print(f"Total samples: {total_samples}")
-            print(f"Expected duration: {expected_duration:.2f} seconds")
-
-            with wave.open(filename, 'wb') as wf:
-                wf.setnchannels(1)
-                wf.setsampwidth(self.num_bytes_per_sample)
-                wf.setframerate(self.sample_rate)
-                wf.writeframes(compiled_audio)
-            print(f"================================================================================================================================Saved compiled audio to {filename}")
-        else:
-            print("================================================================================================================================No audio buffer to save.")
-
     def transcribe_audio(self):
         """
         Transcribe buffered speech after detecting silence.
         """
-        print('=================================================================================================starting transcription')
+        # print('=================================================================================================starting transcription')
+        transcription_start_time = time.time()
         if not self.speech_buffer:
             return None
 
@@ -198,8 +170,39 @@ class StreamProcessor:
             # Transcribe using Whisper
             segments, _ = whisper_model.transcribe(wav_io)
             transcription = " ".join([segment.text for segment in segments])
+            print(f"transcription time was: {time.time() - transcription_start_time}s")
             if transcription.strip():
                 return transcription
         except Exception as e:
             print(f"Error during transcription: {e}")
         return None
+    
+
+        # def save_compiled_audio(self):
+    #     """
+    #     Save the compiled speech buffer to a file for inspection.
+    #     """
+    #     print("================================================================================================================================Saving compiled audio...")
+
+    #     if self.speech_buffer:
+    #         print("Compiling all audio buffer...")
+
+    #         compiled_audio = b"".join(self.speech_buffer)
+
+    #         # Define the filename with timestamp
+    #         timestamp = time.strftime("%Y%m%d-%H%M%S")
+    #         filename = os.path.join(self.audio_directory, f"compiled_audio_{timestamp}.wav")
+    #         total_samples = len(compiled_audio) // self.num_bytes_per_sample
+    #         expected_duration = total_samples / self.sample_rate
+    #         print(f"Compiled audio data length: {len(compiled_audio)} bytes")
+    #         print(f"Total samples: {total_samples}")
+    #         print(f"Expected duration: {expected_duration:.2f} seconds")
+
+    #         with wave.open(filename, 'wb') as wf:
+    #             wf.setnchannels(1)
+    #             wf.setsampwidth(self.num_bytes_per_sample)
+    #             wf.setframerate(self.sample_rate)
+    #             wf.writeframes(compiled_audio)
+    #         print(f"================================================================================================================================Saved compiled audio to {filename}")
+    #     else:
+    #         print("================================================================================================================================No audio buffer to save.")

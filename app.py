@@ -13,7 +13,7 @@ from langchain_core.prompts import PromptTemplate
 
 from config import Config
 from ai_helpers import process_initial_message, process_message, initiate_inbound_message
-from audio_helpers import text_to_speech, save_audio_file, convert_audio_to_wav, convert_audio_to_pcm
+from audio_helpers import text_to_speech, save_audio_file, convert_audio_to_wav, convert_audio_to_pcm, stream_audio_to_twilio
 from yarngpt_helper import text_to_speech_yarngpt
 from stream_processor import StreamProcessor
 
@@ -74,7 +74,7 @@ client = Client(Config.TWILIO_ACCOUNT_SID, Config.TWILIO_AUTH_TOKEN)
 stream_processors = {}
 call_sessions = {}
 audio_play_start_time = time.time()
-audio_play_end_time = None
+
 
 # Directory to save the final combined audio file
 audio_files_directory = "audio_files"
@@ -247,14 +247,15 @@ def connect_media_stream():
 
 
 @sock.route('/media-stream')
-def handle_media(ws):
+async def handle_media(ws):
     print("Client connected")
 
     stream_to_unique_id = {}
 
-    while True:
+    # while True:
+    async for message in ws:
         try:
-            message = ws.receive()
+            # message = ws.receive()
             if message:
                 data = json.loads(message)
                 event = data.get('event')
@@ -318,24 +319,21 @@ def handle_media(ws):
 
                         audio_start_time = time.time()
                          # Generate speech from AI response
-                        audio_data = text_to_speech(response_text)
-                        audio_file_path = save_audio_file(audio_data)
-                        audio_filename = os.path.basename(audio_file_path)
+                        # audio_data = text_to_speech(response_text)
+                        # audio_file_path = save_audio_file(audio_data)
+                        # audio_filename = os.path.basename(audio_file_path)
+
+                        # Stream generated response
+                        await stream_audio_to_twilio(ws, stream_sid, response_text)
                         audio_end_time = time.time()
                         print(f"audio gen time: {audio_end_time - audio_start_time}")
-                        # print(f"Memory usage after audio created: {psutil.virtual_memory().percent}%")
 
-                        response = VoiceResponse()
-                        response.play(url_for('serve_audio',  filename=secure_filename(audio_filename), _external=True))    
-                        # start = Start()
-                        # start.stream(url=f"{Config.APP_SOCKET_URL}")
-                        # response.append(start)
-                        
-                        # print(f"Memory usage playing audio: {psutil.virtual_memory().percent}%")
+                        # response = VoiceResponse()
+                        # response.play(url_for('serve_audio',  filename=secure_filename(audio_filename), _external=True))    
 
                         # Update Twilio call
-                        audio_play_start_time = time.time()
-                        client.calls(call_sid).update(twiml=str(response))             
+                        # audio_play_start_time = time.time()
+                        # client.calls(call_sid).update(twiml=str(response))             
 
                         message_history.append({"role": "user", "content": transcription})
                         message_history.append({"role": "assistant", "content": response_text})
