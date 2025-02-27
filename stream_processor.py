@@ -34,7 +34,7 @@ class StreamProcessor:
         self.speech_detected = False
         self.recording_session_active = False
         self.end_speech_time = None
-        self.pause_duration = 0.4
+        self.pause_duration = 0.5
         self.transcription = None 
 
         # Ensure the audio directory exists

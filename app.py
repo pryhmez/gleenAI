@@ -73,6 +73,8 @@ client = Client(Config.TWILIO_ACCOUNT_SID, Config.TWILIO_AUTH_TOKEN)
 # Stores active stream processors and call sessions
 stream_processors = {}
 call_sessions = {}
+audio_play_start_time = None
+audio_play_end_time = None
 
 # Directory to save the final combined audio file
 audio_files_directory = "audio_files"
@@ -298,6 +300,7 @@ def handle_media(ws):
                     # Check if transcription is available
                     transcription = processor.get_transcription()
                     if transcription:
+                        start_time = time.time()
                         # Retrieve unique_id for message history
                         unique_id = stream_to_unique_id.get(stream_sid)
                         # print(unique_id)
@@ -307,18 +310,19 @@ def handle_media(ws):
                         # print(message_history)
                         ai_response_text = process_message(message_history, transcription)
                         response_text = clean_response(ai_response_text)
-
-                        logger.debug(f"AI Response: {response_text}")
+                        print(f"response gen time: {time.time() - start_time}")
+                        # logger.debug(f"AI Response: {response_text}")
 
                         # torch.cuda.empty_cache()
                         # print(f"Memory usage before audio created: {psutil.virtual_memory().percent}%")
 
-
+                        audio_start_time = time.time()
                          # Generate speech from AI response
                         audio_data = text_to_speech(response_text)
                         audio_file_path = save_audio_file(audio_data)
                         audio_filename = os.path.basename(audio_file_path)
-
+                        audio_end_time = time.time()
+                        print(f"audio gen time: {audio_end_time - audio_start_time}")
                         # print(f"Memory usage after audio created: {psutil.virtual_memory().percent}%")
 
                         response = VoiceResponse()
@@ -330,6 +334,7 @@ def handle_media(ws):
                         # print(f"Memory usage playing audio: {psutil.virtual_memory().percent}%")
 
                         # Update Twilio call
+                        audio_play_start_time = time.time()
                         client.calls(call_sid).update(twiml=str(response))             
 
                         message_history.append({"role": "user", "content": transcription})
@@ -363,7 +368,7 @@ def serve_audio(filename):
     directory = 'audio_files'
 
     print(directory + " playing audion now")
-
+    print(f"twilio delay to play: {time.time() - audio_play_start_time}")
     @after_this_request
     def remove_file(response):
         full_path = os.path.join(directory, filename)
