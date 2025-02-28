@@ -1,6 +1,7 @@
 import openai
 from config import Config
 import json
+import time
 from langchain_core.prompts import PromptTemplate
 from prompts import AGENT_STARTING_PROMPT_TEMPLATE, STAGE_TOOL_ANALYZER_PROMPT, AGENT_PROMPT_OUTBOUND_TEMPLATE, AGENT_PROMPT_INBOUND_TEMPLATE
 from flask import session  # Uncomment it after testing.
@@ -24,6 +25,7 @@ def sanitize_json_string(json_string):
     return json_string.replace("\\", "")
 
 def gen_ai_output(prompt):
+    start_time = time.time()
     response = gclient.chat.completions.create(
                 # model="mixtral-8x7b-32768",
                 model="llama-3.3-70b-versatile",
@@ -33,6 +35,7 @@ def gen_ai_output(prompt):
                 stream=False,
                 top_p=1
             )    
+    print(f"LLM response text generation took: {time.time() - start_time}s")
     # response = openai.chat.completions.create(
     #             model="gpt-3.5-turbo",
     #             messages=prompt,
