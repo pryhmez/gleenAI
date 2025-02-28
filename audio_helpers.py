@@ -42,9 +42,19 @@ async def stream_audio_to_twilio(websocket, stream_sid, text):
             }
         }
 
-        # Send to Twilio WebSocket
-        await websocket.send(json.dumps(media_message))
-        print(f"Sent chunk {i} to Twilio")
+        print(f"Media message created: {media_message}")
+
+        if isinstance(media_message, dict):
+            # Log the JSON data before sending
+            json_message = json.dumps(media_message)
+            print(f"Sending JSON message: {json_message}")
+
+            # Send to Twilio WebSocket
+            await websocket.send(json_message)
+            print(f"Sent chunk {i} to Twilio")
+        else:
+            logger.error(f"Expected media_message to be a dict, but got {type(media_message)}")
+
 
 def text_to_speech(text, voice='af_heart', speed=1, TTS=1):
     if TTS == 1:
