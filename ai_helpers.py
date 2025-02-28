@@ -4,7 +4,7 @@ import json
 import time
 from langchain_core.prompts import PromptTemplate
 from prompts import AGENT_STARTING_PROMPT_TEMPLATE, STAGE_TOOL_ANALYZER_PROMPT, AGENT_PROMPT_OUTBOUND_TEMPLATE, AGENT_PROMPT_INBOUND_TEMPLATE
-from flask import session  # Uncomment it after testing.
+from starlette.middleware.sessions import SessionMiddleware
 from stages import OUTBOUND_CONVERSATION_STAGES, INBOUND_CONVERSATION_STAGES
 from tools import tools_info,onsite_appointment,fetch_product_price,calendly_meeting,appointment_availability
 from groq import Groq
