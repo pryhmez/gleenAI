@@ -16,7 +16,7 @@ import websockets
 
 from urllib.parse import quote_plus
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, Depends, BackgroundTasks
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.websockets import WebSocketState
 from starlette.middleware.sessions import SessionMiddleware
@@ -121,7 +121,8 @@ async def make_call(request: Request):
 
     response = VoiceResponse()
     response.play(f"{Config.APP_PUBLIC_URL}/audio/{audio_filename}")
-    response.redirect(f"{Config.APP_PUBLIC_GATHER_URL}?CallSid={unique_id}")
+    redirect_url = request.url_for("connect_media_stream", unique_id=unique_id)
+    response.redirect(redirect_url)
 
     call = client.calls.create(
         twiml=str(response),
@@ -150,6 +151,23 @@ async def twilio_events(request: Request):
         call_sessions.pop(call_sid, None)
     
     return {"status": "received"}
+
+@app.api_route("/connect-media-stream", methods=["GET", "POST"])
+async def connect_media_stream(request: Request):
+    unique_id = request.query_params.get("unique_id")
+    if not unique_id:
+        return PlainTextResponse("Missing unique_id", status_code=400)
+
+    logger.debug(f"Connecting to socket {Config.APP_SOCKET_URL}")
+
+    response = VoiceResponse()
+    start = Start()
+    stream = Stream(url=f"{Config.APP_SOCKET_URL}")
+    stream.parameter(name="unique_id", value=unique_id)
+    start.append(stream)
+    response.append(start)
+    response.pause(length=120)
+    return Response(content=str(response), media_type="application/xml")
 
 
 @app.websocket("/media-stream")
@@ -180,7 +198,10 @@ async def media_stream(websocket: WebSocket):
                         message_history.append({"role": "assistant", "content": response_text})
                         redis_client.set(unique_id, json.dumps(message_history))
     except WebSocketDisconnect:
-        await websocket.close()
+      stream_sid = websocket.scope.get("stream_sid")  # Store this earlier in `start` event
+      if stream_sid:
+          stream_processors.pop(stream_sid, None)
+      await websocket.close()
 
 @app.get("/audio/{filename}")
 def serve_audio(filename: str):
