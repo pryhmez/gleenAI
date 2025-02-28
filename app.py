@@ -107,12 +107,12 @@ def voice():
 
     response = VoiceResponse()
     response.play(f"{Config.APP_PUBLIC_URL}/audio/{audio_filename}")
-    start = Start()
+    connect = Connect()
     stream = Stream(url=f"{Config.APP_SOCKET_URL}")
     stream.parameter(name="unique_id", value=unique_id)
-    start.append(stream)
-    response.append(start)
-    response.pause(length=120)
+    connect.append(stream)
+    response.append(connect)
+    response.pause(length=10)
     return Response(content=str(response), media_type="application/xml")
 
 @app.post("/start-call")
@@ -173,12 +173,12 @@ async def connect_media_stream(request: Request):
     logger.debug(f"Connecting to socket {Config.APP_SOCKET_URL}")
 
     response = VoiceResponse()
-    start = Start()
+    connect = Connect()
     stream = Stream(url=f"{Config.APP_SOCKET_URL}")
     stream.parameter(name="unique_id", value=unique_id)
-    start.append(stream)
-    response.append(start)
-    response.pause(length=120)
+    connect.append(stream)
+    response.append(connect)
+    response.pause(length=10)
     return Response(content=str(response), media_type="application/xml")
 
 
