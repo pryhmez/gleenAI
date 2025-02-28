@@ -93,15 +93,27 @@ def delayed_delete(filename, delay=5):
 def ping():
     return "pong"
 
-@app.post("/voice")
+@app.post("/voice-incoming")
 def voice():
-    response = VoiceResponse()
-    start = Start()
-    start.stream(url=f"{Config.APP_PUBLIC_URL}/socket.io/")
-    response.append(start)
-    response.say("Hello, I'm your AI assistant. How can I help you?")
-    return Response(content=str(response), media_type="application/xml")
+    unique_id = str(uuid.uuid4())
+    print("inbound call imminent....")
+    message_history = []
+    agent_response= initiate_inbound_message()
+    initial_message = clean_response(agent_response)
+    audio_data = text_to_speech(initial_message)
+    audio_file_path = save_audio_file(audio_data)
+    audio_filename = os.path.basename(audio_file_path)
+    redis_client.set(unique_id, json.dumps([{"role": "assistant", "content": initial_message}]))
 
+    response = VoiceResponse()
+    response.play(f"{Config.APP_PUBLIC_URL}/audio/{audio_filename}")
+    start = Start()
+    stream = Stream(url=f"{Config.APP_SOCKET_URL}")
+    stream.parameter(name="unique_id", value=unique_id)
+    start.append(stream)
+    response.append(start)
+    response.pause(length=120)
+    return Response(content=str(response), media_type="application/xml")
 
 @app.post("/start-call")
 async def make_call(request: Request):
