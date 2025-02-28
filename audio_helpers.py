@@ -42,7 +42,7 @@ async def stream_audio_to_twilio(websocket, stream_sid, text):
             }
         }
 
-        print(f"Media message created: {media_message}")
+        print(f"Media message created: {type(media_message)}")
 
         if isinstance(media_message, dict):
             # Log the JSON data before sending
