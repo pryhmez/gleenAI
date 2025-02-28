@@ -20,6 +20,7 @@ from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.websockets import WebSocketState
 from starlette.middleware.sessions import SessionMiddleware
+from fastapi import Response
 
 from twilio.rest import Client
 from twilio.twiml.voice_response import VoiceResponse, Start, Connect, Stream
@@ -99,7 +100,8 @@ def voice():
     start.stream(url=f"{Config.APP_PUBLIC_URL}/socket.io/")
     response.append(start)
     response.say("Hello, I'm your AI assistant. How can I help you?")
-    return JSONResponse(content={"twiml": str(response)})
+    return Response(content=str(response), media_type="application/xml")
+
 
 @app.post("/start-call")
 async def make_call(request: Request):
@@ -135,19 +137,20 @@ async def make_call(request: Request):
     return {"status": "calling", "call_sid": call.sid}
 
 @app.post("/event")
-def twilio_events(request: Request):
-    form = request.form()
-    call_sid = form.get("CallSid")
-    call_status = form.get("CallStatus")
+async def twilio_events(request: Request):
+    form = await request.form()
+    call_sid = await form.get("CallSid")
+    call_status = await form.get("CallStatus")
     
     if call_sid in call_sessions:
         call_sessions[call_sid]["status"] = call_status
-    
+
     if call_status in ["completed", "failed", "busy", "no-answer"]:
         stream_processors.pop(call_sid, None)
         call_sessions.pop(call_sid, None)
     
     return {"status": "received"}
+
 
 @app.websocket("/media-stream")
 async def media_stream(websocket: WebSocket):
