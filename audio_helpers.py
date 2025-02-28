@@ -176,10 +176,11 @@ def convert_audio_to_pcm(audio_data):
         return None
 
 def convert_to_mulaw(audio_chunk, samplerate=8000):
-    """Convert NumPy audio chunk to μ-law format (8000 Hz)."""
-    with io.BytesIO() as buffer:
-        sf.write(buffer, audio_chunk, samplerate=samplerate, subtype="PCM_U8", format='RAW')
-        return buffer.getvalue()
+    buffer = io.BytesIO()
+    sf.write(buffer, audio_chunk, samplerate=samplerate, subtype="PCM_U8", format='RAW')
+    buffer.seek(0)
+    return buffer.read()
+
 
     
 def resample_audio(pcm_audio, orig_sr=8000, target_sr=16000):
