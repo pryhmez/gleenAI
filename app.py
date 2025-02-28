@@ -121,7 +121,7 @@ async def make_call(request: Request):
 
     response = VoiceResponse()
     response.play(f"{Config.APP_PUBLIC_URL}/audio/{audio_filename}")
-    redirect_url = request.url_for("connect_media_stream", unique_id=unique_id)
+    redirect_url = f"{Config.APP_PUBLIC_URL}/connect-media-stream?unique_id={unique_id}"
     response.redirect(redirect_url)
 
     call = client.calls.create(
