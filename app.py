@@ -102,12 +102,12 @@ def voice():
     return JSONResponse(content={"twiml": str(response)})
 
 @app.post("/start-call")
-def make_call(request: Request):
-    data = request.json()
+async def make_call(request: Request):
+    data = await request.json()
     unique_id = str(uuid.uuid4())
-    customer_name = data.get("customer_name", "Valued Customer")
-    customer_phonenumber = data.get("customer_phonenumber", "")
-    customer_businessdetails = data.get("customer_businessdetails", "No details provided.")
+    customer_name = await data.get("customer_name", "Valued Customer")
+    customer_phonenumber = await data.get("customer_phonenumber", "")
+    customer_businessdetails = await data.get("customer_businessdetails", "No details provided.")
 
     ai_message = process_initial_message(customer_name, customer_businessdetails)
     initial_message = clean_response(ai_message)
