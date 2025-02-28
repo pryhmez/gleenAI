@@ -32,15 +32,12 @@ async def stream_audio_to_twilio(websocket, stream_sid, text):
         # Convert NumPy audio chunk to μ-law format
         audio_bytes = convert_to_mulaw(audio_chunk)
 
-        # Base64 encode
-        encoded_audio = base64.b64encode(audio_bytes).decode("utf-8")
-
         # Create Twilio media message
         media_message = {
             "event": "media",
             "streamSid": stream_sid,
             "media": {
-                "payload": encoded_audio
+                "payload": base64.b64encode(audio_bytes).decode("utf-8")
             }
         }
 
