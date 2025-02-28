@@ -112,7 +112,7 @@ async def voice(request: Request):
     "messages": [{"role": "assistant", "content": initial_message}]
     }
     redis_client.set(unique_id, json.dumps(conversation_data))
-    call_sid[call_sid] = {"unique_id": unique_id, "status": "answered"}
+    call_sessions[call_sid] = {"unique_id": unique_id, "status": "answered"}
 
     response = VoiceResponse()
     response.play(f"{Config.APP_PUBLIC_URL}/audio/{audio_filename}")
