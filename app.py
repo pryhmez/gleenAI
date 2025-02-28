@@ -96,7 +96,7 @@ def ping():
 @app.post("/voice-incoming")
 async def voice(request: Request):
     unique_id = str(uuid.uuid4())
-    data = await request.json()
+    data = await request.body()
     print(f"inbound call imminent....call sid: {data}")
     message_history = []
     agent_response= initiate_inbound_message()
