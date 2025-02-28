@@ -139,8 +139,8 @@ async def make_call(request: Request):
 @app.post("/event")
 async def twilio_events(request: Request):
     form = await request.form()
-    call_sid = await form.get("CallSid")
-    call_status = await form.get("CallStatus")
+    call_sid = form.get("CallSid")
+    call_status = form.get("CallStatus")
     
     if call_sid in call_sessions:
         call_sessions[call_sid]["status"] = call_status
