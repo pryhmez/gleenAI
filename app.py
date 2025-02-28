@@ -154,6 +154,7 @@ async def twilio_events(request: Request):
 
 @app.websocket("/media-stream")
 async def media_stream(websocket: WebSocket):
+    print("connecting to stream=================")
     await websocket.accept()
     try:
         while True:
