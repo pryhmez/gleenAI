@@ -11,6 +11,7 @@ import librosa
 import base64
 import json
 import numpy as np
+import torch
 from kokoro import KPipeline
 import soundfile as sf
 
@@ -190,6 +191,8 @@ def convert_audio_to_pcm(audio_data):
 
 def convert_to_mulaw(audio_chunk, samplerate=8000):
     print(f"Received audio_chunk of type {type(audio_chunk)} and shape {audio_chunk.shape}")
+    if isinstance(audio_chunk, torch.Tensor):
+        audio_chunk = audio_chunk.cpu().numpy()
     buffer = io.BytesIO()
     sf.write(buffer, audio_chunk, samplerate=samplerate, subtype="PCM_U8", format='RAW')
     buffer.seek(0)
