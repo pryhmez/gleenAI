@@ -237,8 +237,10 @@ async def media_stream(websocket: WebSocket):
       await websocket.close()
 
 @app.get("/audio/{filename}")
-def serve_audio(filename: str):
+def serve_audio(filename: str, background_tasks: BackgroundTasks):
     file_path = os.path.join("audio_files", filename)
+
     if not os.path.exists(file_path):
         return JSONResponse(status_code=404, content={"message": "File not found"})
+    background_tasks.add_task(delayed_delete, file_path)
     return FileResponse(file_path, media_type="audio/wav")
