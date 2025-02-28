@@ -5,7 +5,7 @@ import base64
 import os
 import time
 # import redis
-from .common import redis_client
+from .common.redis_client import redis_client
 import uuid
 import logging
 import threading
