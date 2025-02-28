@@ -8,7 +8,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from stages import OUTBOUND_CONVERSATION_STAGES, INBOUND_CONVERSATION_STAGES
 from tools import tools_info,onsite_appointment,fetch_product_price,calendly_meeting,appointment_availability
 from groq import Groq
-from .common.redis_client import redis_client
+from common.redis_client import redis_client
 
 # session ={} # Added for testing. remove after testing
 
