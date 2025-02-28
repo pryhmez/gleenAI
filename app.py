@@ -144,7 +144,7 @@ async def twilio_events(request: Request):
     
     if call_sid in call_sessions:
         call_sessions[call_sid]["status"] = call_status
-
+    print(f"Call {call_sid} status: {call_status}")
     if call_status in ["completed", "failed", "busy", "no-answer"]:
         stream_processors.pop(call_sid, None)
         call_sessions.pop(call_sid, None)
