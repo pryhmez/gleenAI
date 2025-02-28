@@ -31,6 +31,7 @@ async def stream_audio_to_twilio(websocket, stream_sid, text):
 
         # Convert NumPy audio chunk to μ-law format
         audio_bytes = convert_to_mulaw(audio_chunk)
+        logger.debug(f"Converted audio chunk to μ-law format, length: {len(audio_bytes)}")
 
         # Create Twilio media message
         media_message = {
@@ -176,6 +177,7 @@ def convert_audio_to_pcm(audio_data):
         return None
 
 def convert_to_mulaw(audio_chunk, samplerate=8000):
+    logger.debug(f"Received audio_chunk of type {type(audio_chunk)} and shape {audio_chunk.shape}")
     buffer = io.BytesIO()
     sf.write(buffer, audio_chunk, samplerate=samplerate, subtype="PCM_U8", format='RAW')
     buffer.seek(0)
