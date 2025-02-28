@@ -4,7 +4,8 @@ import torch
 import base64
 import os
 import time
-import redis
+# import redis
+from .common import redis_client
 import uuid
 import logging
 import threading
@@ -53,12 +54,12 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Redis connection
-redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=False)
-try:
-    redis_client.ping()
-    logging.info("Connected to Redis")
-except redis.ConnectionError as e:
-    logging.error(f"Redis connection error: {e}")
+# redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=False)
+# try:
+#     redis_client.ping()
+#     logging.info("Connected to Redis")
+# except redis.ConnectionError as e:
+#     logging.error(f"Redis connection error: {e}")
 
 # Twilio Client
 client = Client(Config.TWILIO_ACCOUNT_SID, Config.TWILIO_AUTH_TOKEN)
@@ -95,8 +96,8 @@ def ping():
 
 @app.post("/voice-incoming")
 async def voice(request: Request):
-    unique_id = str(uuid.uuid4())
     form_data = await request.form()
+    unique_id = str(uuid.uuid4())
     call_sid = form_data.get("CallSid")
     print(f"inbound call imminent....call sid: {call_sid}")
     message_history = []
@@ -105,7 +106,13 @@ async def voice(request: Request):
     audio_data = text_to_speech(initial_message)
     audio_file_path = save_audio_file(audio_data)
     audio_filename = os.path.basename(audio_file_path)
-    redis_client.set(unique_id, json.dumps([{"role": "assistant", "content": initial_message}]))
+
+    conversation_data = {
+    "conversation_stage_id": 1,  # Setting initial stage
+    "messages": [{"role": "assistant", "content": initial_message}]
+    }
+    redis_client.set(unique_id, json.dumps(conversation_data))
+    call_sid[call_sid] = {"unique_id": unique_id, "status": "answered"}
 
     response = VoiceResponse()
     response.play(f"{Config.APP_PUBLIC_URL}/audio/{audio_filename}")
@@ -131,7 +138,11 @@ async def make_call(request: Request):
     audio_file_path = save_audio_file(audio_data)
     audio_filename = os.path.basename(audio_file_path)
 
-    redis_client.set(unique_id, json.dumps([{"role": "assistant", "content": initial_message}]))
+    conversation_data = {
+    "conversation_stage_id": 1,  # Setting initial stage
+    "messages": [{"role": "assistant", "content": initial_message}]
+    }
+    redis_client.set(unique_id, json.dumps(conversation_data))
 
     response = VoiceResponse()
     response.play(f"{Config.APP_PUBLIC_URL}/audio/{audio_filename}")
@@ -205,12 +216,20 @@ async def media_stream(websocket: WebSocket):
                     processor.add_audio(payload)
                     transcription = processor.get_transcription()
                     if transcription:
-                        message_history = json.loads(redis_client.get(unique_id) or "[]")
-                        response_text = clean_response(process_message(message_history, transcription))
-                        await stream_audio_to_twilio(websocket, stream_sid, response_text)
-                        message_history.append({"role": "user", "content": transcription})
-                        message_history.append({"role": "assistant", "content": response_text})
-                        redis_client.set(unique_id, json.dumps(message_history))
+                      conversation_data = {
+                        "conversation_stage_id": 1,  # Default initial stage
+                        "messages": []
+                      }
+                      stored_data = redis_client.get(unique_id)
+                      if stored_data:
+                          conversation_data = json.loads(stored_data)
+                      message_history = conversation_data.get("messages", [])
+                      response_text = clean_response(process_message(message_history, transcription, unique_id))
+                      await stream_audio_to_twilio(websocket, stream_sid, response_text)
+                      message_history.append({"role": "user", "content": transcription})
+                      message_history.append({"role": "assistant", "content": response_text})
+                      conversation_data["messages"] = message_history
+                      redis_client.set(unique_id, json.dumps(conversation_data))
     except WebSocketDisconnect:
       stream_sid = websocket.scope.get("stream_sid")  # Store this earlier in `start` event
       if stream_sid:

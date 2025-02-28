@@ -8,6 +8,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from stages import OUTBOUND_CONVERSATION_STAGES, INBOUND_CONVERSATION_STAGES
 from tools import tools_info,onsite_appointment,fetch_product_price,calendly_meeting,appointment_availability
 from groq import Groq
+from .common import redis_client
 
 # session ={} # Added for testing. remove after testing
 
@@ -95,8 +96,8 @@ def process_initial_message(customer_name, customer_problem):
     response = gen_ai_output(message_to_send_to_ai)
     return response
 
-def invoke_stage_tool_analysis(message_history,user_input):
-    conversation_stage_id = session.get('conversation_stage_id', 1)
+def invoke_stage_tool_analysis(message_history, user_input, unique_id):
+    conversation_stage_id = get_conversation_stage(unique_id)
     tools_description = "\n".join([
     f"{tool['name']}: {tool['description']}" +
     (f" (Parameters: {', '.join([f'{k} - possible values: {v}' if isinstance(v, list) else f'{k} - format: {v}' for k, v in tool.get('parameters', {}).items()])})" if 'parameters' in tool else "")
@@ -139,17 +140,24 @@ def initiate_inbound_message():
     
 
 
-def process_message(message_history, user_input):
+def process_message(message_history, user_input, unique_id):
     # if 'message_history' not in session:
     #     session['message_history'] = []
     # print("AI Tool and Conversation stage is decided: ", ai_output)
     """Process the AI decision to either call a tool or handle conversation stages."""
     print(message_history)
     print('user said:' + user_input)
-    stage_tool_output=invoke_stage_tool_analysis(message_history, user_input)
+    stage_tool_output=invoke_stage_tool_analysis(message_history, user_input, unique_id)
     # print("stage tool output----------------- " + stage_tool_output )
     stage = get_conversation_stage(stage_tool_output)
-    session['conversation_stage_id'] = stage
+    stored_data = redis_client.get(unique_id)
+    conversation_data = json.loads(stored_data) if stored_data else {
+        "conversation_stage_id": 1,  # Set to new stage
+        "messages": []
+    }
+    conversation_data["conversation_stage_id"] =  stage
+    redis_client.set(unique_id, json.dumps(conversation_data))
+
     tool_output=''
     try:
         if is_tool_required(stage_tool_output):
@@ -174,7 +182,7 @@ def process_message(message_history, user_input):
     except ValueError as e:
         tool_output = "Some Error Occured In calling the tools. Ask User if its okay that you callback the user later with answer of the query."
     
-    conversation_stage_id = session.get('conversation_stage_id', 1)
+    conversation_stage_id = conversation_data.get('conversation_stage_id', 1)
     print("Creating inbound prompt template")
     inbound_prompt = AGENT_PROMPT_OUTBOUND_TEMPLATE.format(
         salesperson_name=salesperson_name,
@@ -198,6 +206,28 @@ def process_message(message_history, user_input):
     print("Calling With inbound template: ", json.dumps(message_history))
     talkback_response = gen_ai_output(message_to_send_to_ai_final)
     return talkback_response
+
+
+# Function to get conversation stage from Redis
+def get_conversation_stage(unique_id):
+    stored_data = redis_client.get(unique_id)
+    if stored_data:
+        conversation_data = json.loads(stored_data)
+        return conversation_data.get('conversation_stage_id', 1)
+    return 1
+
+# Function to update conversation stage in Redis
+def update_conversation_stage(unique_id, new_stage):
+    stored_data = redis_client.get(unique_id)
+    if stored_data:
+        conversation_data = json.loads(stored_data)
+    else:
+        conversation_data = {
+            "conversation_stage_id": new_stage,
+            "messages": []
+        }
+    conversation_data['conversation_stage_id'] = new_stage
+    redis_client.set(unique_id, json.dumps(conversation_data))
 
 
 # Test Section : Remove After Testing
