@@ -131,7 +131,7 @@ class StreamProcessor:
 
         if self.recording_session_active:
             current_time = time.time()
-            if current_time - self.last_partial_ts > 0.5:
+            if current_time - self.last_partial_ts > 1:
                 self.executor.submit(self.partial_transcription_task)
                 self.last_partial_ts = current_time
 
@@ -155,7 +155,7 @@ class StreamProcessor:
             self.speech_buffer = bytearray()            
             resampled_audio_bytes = resample_audio(audio_chunk, orig_sr=8000, target_sr=16000)
             wav_io = save_as_wav_inmem(resampled_audio_bytes, sample_rate=16000)
-            segments, _ = whisper_model.transcribe(wav_io)
+            segments, _ = whisper_model.transcribe(wav_io, beam_size=5)
             partial = " ".join([segment.text for segment in segments])
             self.running_transcript += " " + partial
             print(f"Partial transcription: {partial}")
@@ -180,7 +180,7 @@ class StreamProcessor:
             wav_io = save_as_wav_inmem(resampled_audio_bytes, sample_rate=16000)
 
             # Transcribe using Whisper
-            segments, _ = whisper_model.transcribe(wav_io)
+            segments, _ = whisper_model.transcribe(wav_io, beam_size=5)
             partial = " ".join([segment.text for segment in segments])
             self.running_transcript += " " + partial
             transcription = self.running_transcript
@@ -220,3 +220,15 @@ class StreamProcessor:
     #         print(f"================================================================================================================================Saved compiled audio to {filename}")
     #     else:
     #         print("================================================================================================================================No audio buffer to save.")
+
+# def record_chunk(p, stream, file_path, chunk_length=1):
+#     frames= []
+#     for _ in range(0, int(16000/1024*chunk_length)):
+#         data = stream.read(1024)
+#         frames.append(data)
+#     wf = wave.open(file_path, 'wb')
+#     wf.setnchannels(1)  # Mono audio
+#     wf.setsampwidth(p.get_sample_size(pyaudio.paInt16))  # 16-bit PCM (2 bytes)
+#     wf.setframerate(16000)
+#     wf.writeframes(b''.join(frames))
+#     wf.close()
