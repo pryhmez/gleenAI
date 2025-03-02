@@ -37,6 +37,7 @@ class StreamProcessor:
 
         self.transcription_lock = threading.Lock()
         self.executor = ThreadPoolExecutor(max_workers=1)
+        self.last_partial_ts = None
         self.transcription = None
         self.running_transcript = ""
 
