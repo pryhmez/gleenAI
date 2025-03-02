@@ -10,9 +10,8 @@ import librosa
 from silero_vad import get_speech_timestamps, VADIterator
 from faster_whisper import WhisperModel
 from audio_helpers import resample_audio, save_as_wav_inmem
-
-
-from audio_helpers import text_to_speech, save_audio_file, convert_audio_to_wav
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 # Initialize Faster Whisper
 whisper_model = WhisperModel("distil-large-v2", device="cuda", compute_type="float16")
@@ -25,7 +24,7 @@ class StreamProcessor:
         self.audio_buffer = bytearray()
         self.silence_duration = silence_duration
         self.sample_rate = sample_rate
-        self.speech_buffer = []
+        self.speech_buffer = bytearray()
         self.all_audio_buffer = []
         self.last_speech_time = time.time()
         self.last_save_time = time.time()  # Timer for saving audio
@@ -34,8 +33,13 @@ class StreamProcessor:
         self.speech_detected = False
         self.recording_session_active = False
         self.end_speech_time = None
-        self.pause_duration = 0.5
-        self.transcription = None 
+        self.pause_duration = 0.2
+
+        self.transcription_lock = threading.Lock()
+        self.executor = ThreadPoolExecutor(max_workers=1)
+        self.transcription = None
+        self.running_transcript = ""
+
 
         # Ensure the audio directory exists
         os.makedirs(self.audio_directory, exist_ok=True)
@@ -85,19 +89,12 @@ class StreamProcessor:
 
         # Process full chunks of window_size_samples
         while total_samples >= self.window_size_samples:
-            # Extract a chunk of window_size_samples
-            # chunk_size = self.window_size_samples * self.num_bytes_per_sample
-            # chunk_bytes = self.audio_buffer[:chunk_size]
-            # self.audio_buffer = self.audio_buffer[chunk_size:]
-            # total_samples -= self.window_size_samples
-
             chunk_size = self.window_size_samples * self.num_bytes_per_sample
             # Get the next chunk
             chunk_bytes = self.audio_buffer[:chunk_size]
             # Temporarily remove chunk_bytes from the buffer
             del self.audio_buffer[:chunk_size]
             total_samples -= self.window_size_samples
-
             # Convert audio_data to float32 numpy array
             audio_array = np.frombuffer(chunk_bytes, dtype=np.int16).astype(np.float32) / 32768.0
             audio_tensor = torch.from_numpy(audio_array).unsqueeze(0)
@@ -105,27 +102,25 @@ class StreamProcessor:
             # Pass audio chunk to VADIterator
             try:
                 speech_dict = self.vad_iterator(audio_tensor)
-                # print(f"VAD output: {speech_dict}")
-
                 if speech_dict is not None:
                     if 'start' in speech_dict:
                         print("Detected start of speech")
                         self.speech_detected = True
                         self.recording_session_active = True
                         self.end_speech_time = None
-                        self.speech_buffer.append(chunk_bytes)
+                        self.speech_buffer.extend(chunk_bytes)
                     elif 'end' in speech_dict:
                         print("Detected end of speech so waiting for pause grace")
                         self.speech_detected = False
                         self.end_speech_time = time.time()
-                        self.speech_buffer.append(chunk_bytes)
+                        self.speech_buffer.extend(chunk_bytes)
                     elif self.recording_session_active:
                         # print('still in active session waiting for timeout1')
-                        self.speech_buffer.append(chunk_bytes)
+                        self.speech_buffer.extend(chunk_bytes)
                 else:
                     if self.recording_session_active:
                         # print('still in active session waiting for timout2')
-                        self.speech_buffer.append(chunk_bytes)
+                        self.speech_buffer.extend(chunk_bytes)
 
             except ValueError as e:
                 print(f"VAD processing error: {e}")
@@ -133,34 +128,50 @@ class StreamProcessor:
                 self.audio_buffer = bytearray(chunk_bytes) + self.audio_buffer
                 break    # Exit the loop to accumulate more data
 
+        if self.recording_session_active:
+            current_time = time.time()
+            if current_time - self.last_partial_ts > 0.5:
+                self.executor.submit(self.partial_transcription_task)
+                self.last_partial_ts = current_time
+
         if self.recording_session_active and self.end_speech_time and (time.time() - self.end_speech_time) > self.pause_duration:
             print("Pause duration elapsed, transcribing audio")
             # self.save_compiled_audio()
             self.transcription = self.transcribe_audio()
             if self.transcription:
                 print(f"Transcription: {self.transcription}")
-            self.speech_buffer = []
+            self.speech_buffer = bytearray()
             self.end_speech_time = None
             self.speech_detected = False
             self.recording_session_active = False  # End recording session
             self.vad_iterator.reset_states()
 
+    def partial_transcription_task(self):
+        if not self.speech_buffer:
+            return
+        try:
+            audio_chunk = bytes(self.speech_buffer)
+            self.speech_buffer = bytearray()            
+            resampled_audio_bytes = resample_audio(audio_chunk, orig_sr=8000, target_sr=16000)
+            wav_io = save_as_wav_inmem(resampled_audio_bytes, sample_rate=16000)
+            segments, _ = whisper_model.transcribe(wav_io)
+            partial = " ".join([segment.text for segment in segments])
+            self.running_transcript += " " + partial
+            print(f"Partial transcription: {partial}")
+        except Exception as e:
+            print(f"Error during partial transcription: {e}")
+            
     def transcribe_audio(self):
-        """
-        Transcribe buffered speech after detecting silence.
-        """
-        # print('=================================================================================================starting transcription')
         transcription_start_time = time.time()
         if not self.speech_buffer:
             return None
 
-        audio_chunk = b"".join(self.speech_buffer)
-        self.speech_buffer = []  # Clear after using
-
-        # Save audio_chunk to WAV format for transcription
-        # Ensure the audio is at 16kHz for Whisper
+        # Save audio_chunk to WAV format for transcription7
         # We need to resample it from 8kHz to 16kHz
         try:
+            # audio_chunk = b"".join(self.speech_buffer)
+            audio_chunk = bytes(self.speech_buffer)
+            self.speech_buffer = bytearray()  # Clear after using
             #resample audio from 8KHz to 16KHz
             resampled_audio_bytes = resample_audio(audio_chunk, orig_sr=8000, target_sr=16000)
 
@@ -169,7 +180,9 @@ class StreamProcessor:
 
             # Transcribe using Whisper
             segments, _ = whisper_model.transcribe(wav_io)
-            transcription = " ".join([segment.text for segment in segments])
+            partial = " ".join([segment.text for segment in segments])
+            self.running_transcript += " " + partial
+            transcription = self.running_transcript
             print(f"transcription time was: {time.time() - transcription_start_time}s")
             if transcription.strip():
                 return transcription
