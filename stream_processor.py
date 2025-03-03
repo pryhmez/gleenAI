@@ -14,10 +14,9 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 
 # Initialize Faster Whisper
-whisper_model = WhisperModel("distil-large-v2", device="cuda", compute_type="float16")
+whisper_model = WhisperModel("large-v3", device="cuda", compute_type="float16")
 
  
-
 class StreamProcessor:
     def __init__(self, stream_sid, silence_duration=2, sample_rate=8000, save_interval=10):
         self.stream_sid = stream_sid
