@@ -165,18 +165,25 @@ class StreamProcessor:
             self.recording_session_active = False  # End recording session
             self.vad_iterator.reset_states()
 
-    def partial_transcription_task(self):
+    def run_partial_transcription(self, audio_data):
         if not self.speech_buffer:
             return
         try:
-            audio_chunk = bytes(self.speech_buffer)
-            self.speech_buffer = bytearray()            
-            resampled_audio_bytes = resample_audio(audio_chunk, orig_sr=8000, target_sr=16000)
+            # audio_chunk = bytes(self.speech_buffer)
+            # self.speech_buffer = bytearray()            
+            resampled_audio_bytes = resample_audio(audio_data, orig_sr=8000, target_sr=16000)
             wav_io = save_as_wav_inmem(resampled_audio_bytes, sample_rate=16000)
             segments, _ = whisper_model.transcribe(wav_io, beam_size=5)
             partial = " ".join([segment.text for segment in segments])
-            self.running_transcript += " " + partial
-            print(f"Partial transcription: {partial}")
+            if partial:
+                with self.transcription_lock:
+                    # Append the new partial result to what already exists.
+                    # Optionally, you might want to trim overlaps or spaces.
+                    if self.running_transcript:
+                        self.running_transcript += " " + partial
+                    else:
+                        self.running_transcript = partial
+                print("Partial transcription updated:", partial)
         except Exception as e:
             print(f"Error during partial transcription: {e}")
             
