@@ -14,7 +14,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 
 # Initialize Faster Whisper
-whisper_model = WhisperModel("med", device="cuda", compute_type="float16")
+whisper_model = WhisperModel("large-v1", device="cuda", compute_type="float16")
 
  
 class StreamProcessor:
