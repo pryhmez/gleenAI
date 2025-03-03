@@ -14,7 +14,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 
 # Initialize Faster Whisper
-whisper_model = WhisperModel("large-v3", device="cuda", compute_type="float16")
+whisper_model = WhisperModel("medium.en", device="cuda", compute_type="float16")
 
  
 class StreamProcessor:
@@ -172,7 +172,7 @@ class StreamProcessor:
             # self.speech_buffer = bytearray()            
             resampled_audio_bytes = resample_audio(audio_data, orig_sr=8000, target_sr=16000)
             wav_io = save_as_wav_inmem(resampled_audio_bytes, sample_rate=16000)
-            segments, _ = whisper_model.transcribe(wav_io, beam_size=5)
+            segments, _ = whisper_model.transcribe(wav_io, beam_size=8)
             partial = " ".join([segment.text for segment in segments])
             if partial:
                 with self.transcription_lock:
