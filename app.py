@@ -65,7 +65,7 @@ logger = logging.getLogger(__name__)
 client = Client(Config.TWILIO_ACCOUNT_SID, Config.TWILIO_AUTH_TOKEN)
 
 # Initialize Faster Whisper
-whisper_model = WhisperModel("medium.en", device="cuda", compute_type="float16")
+whisper_model = WhisperModel("med", device="cuda", compute_type="float16")
 
 # Store active stream processors and call sessions
 stream_processors = {}
