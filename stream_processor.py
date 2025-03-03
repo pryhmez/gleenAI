@@ -129,11 +129,29 @@ class StreamProcessor:
                 self.audio_buffer = bytearray(chunk_bytes) + self.audio_buffer
                 break    # Exit the loop to accumulate more data
 
+        # if self.recording_session_active:
+        #     current_time = time.time()
+        #     if current_time - self.last_partial_ts > 1:
+        #         self.executor.submit(self.partial_transcription_task)
+        #         self.last_partial_ts = current_time
         if self.recording_session_active:
-            current_time = time.time()
-            if current_time - self.last_partial_ts > 1:
-                self.executor.submit(self.partial_transcription_task)
-                self.last_partial_ts = current_time
+            total_samples_in_buffer = len(self.speech_buffer) // self.num_bytes_per_sample
+            duration_seconds = total_samples_in_buffer / self.sample_rate
+            
+            # Check if we have reached at least 1 second of audio
+            if duration_seconds >= 1.0:
+                # Compute the number of samples (and bytes) for one second
+                one_second_samples = int(self.sample_rate * 1.0)
+                one_second_bytes = one_second_samples * self.num_bytes_per_sample
+                
+                # Extract one second worth of audio from the speech buffer
+                audio_segment = bytes(self.speech_buffer[:one_second_bytes])
+                
+                # Submit the partial transcription task in the background
+                self.executor.submit(self.run_partial_transcription, audio_segment)
+                
+                # Remove only that portion from the speech buffer, leaving any excess
+                del self.speech_buffer[:one_second_bytes]
 
         if self.recording_session_active and self.end_speech_time and (time.time() - self.end_speech_time) > self.pause_duration:
             print("Pause duration elapsed, transcribing audio")
