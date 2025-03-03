@@ -43,7 +43,7 @@ async def stream_audio_to_twilio(websocket, stream_sid, text):
             }
         }
 
-        json_message = json.dumps(media_message)
+        # json_message = json.dumps(media_message)
         await websocket.send_json(media_message)
 
         # if isinstance(media_message, dict):

@@ -168,7 +168,7 @@ class StreamProcessor:
             # self.speech_buffer = bytearray()            
             resampled_audio_bytes = resample_audio(audio_data, orig_sr=8000, target_sr=16000)
             wav_io = save_as_wav_inmem(resampled_audio_bytes, sample_rate=16000)
-            segments, _ = whisper_model.transcribe(wav_io, beam_size=8)
+            segments, _ = whisper_model.transcribe(wav_io, beam_size=6, condition_on_previous_text=True, initial_prompt=self.running_transcript)
             partial = " ".join([segment.text for segment in segments])
             if partial:
                 with self.transcription_lock:
@@ -200,7 +200,7 @@ class StreamProcessor:
             wav_io = save_as_wav_inmem(resampled_audio_bytes, sample_rate=16000)
 
             # Transcribe using Whisper
-            segments, _ = whisper_model.transcribe(wav_io, beam_size=5)
+            segments, _ = whisper_model.transcribe(wav_io, beam_size=6, condition_on_previous_text=True, initial_prompt=self.running_transcript)
             partial = " ".join([segment.text for segment in segments])
             self.running_transcript += " " + partial
             transcription = self.running_transcript
