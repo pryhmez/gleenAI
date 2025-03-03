@@ -32,7 +32,7 @@ class StreamProcessor:
         self.speech_detected = False
         self.recording_session_active = False
         self.end_speech_time = None
-        self.pause_duration = 0.2
+        self.pause_duration = 0.5
         self.stream_chunk_duration = stream_chunk_duration
 
         self.transcription_lock = threading.Lock()
