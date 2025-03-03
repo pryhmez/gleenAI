@@ -18,7 +18,7 @@ whisper_model = WhisperModel("medium.en", device="cuda", compute_type="float16")
 
  
 class StreamProcessor:
-    def __init__(self, stream_sid, silence_duration=2, sample_rate=8000, save_interval=10):
+    def __init__(self, stream_sid, silence_duration=2, sample_rate=8000, save_interval=10, stream_chunk_duration=1.5):
         self.stream_sid = stream_sid
         self.audio_buffer = bytearray()
         self.silence_duration = silence_duration
@@ -33,6 +33,7 @@ class StreamProcessor:
         self.recording_session_active = False
         self.end_speech_time = None
         self.pause_duration = 0.2
+        self.stream_chunk_duration = stream_chunk_duration
 
         self.transcription_lock = threading.Lock()
         self.executor = ThreadPoolExecutor(max_workers=1)
@@ -133,9 +134,9 @@ class StreamProcessor:
             duration_seconds = total_samples_in_buffer / self.sample_rate
             
             # Check if we have reached at least 1 second of audio
-            if duration_seconds >= 1.0:
+            if duration_seconds >= self.stream_chunk_duration:
                 # Compute the number of samples (and bytes) for one second
-                one_second_samples = int(self.sample_rate * 1.5)
+                one_second_samples = int(self.sample_rate * self.stream_chunk_duration)
                 one_second_bytes = one_second_samples * self.num_bytes_per_sample
                 
                 # Extract one second worth of audio from the speech buffer
